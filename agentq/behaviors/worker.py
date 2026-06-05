@@ -7,7 +7,7 @@ from agentq.events import behavior_span_queue, alert_event_queue, BehaviorAlertE
 from agentq.behaviors.embedder import compute_composite
 from agentq.behaviors import clusterer
 from agentq.behaviors import rubric as rubric_gen
-from agentq.db.engine import async_session
+import agentq.db.engine as _db_engine
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ async def _flush_trace(trace_id: str) -> None:
     try:
         vector = compute_composite(spans)
 
-        async with async_session() as session:
+        async with _db_engine.async_session() as session:
             cluster, assignment, _ = await clusterer.assign(session, trace_id, vector)
             should_generate_rubric = cluster.trace_count == 10 and not cluster.rubric
             cluster_id = cluster.id
@@ -45,7 +45,7 @@ async def _flush_trace(trace_id: str) -> None:
 
 async def _run_rubric(cluster_id: str) -> None:
     try:
-        async with async_session() as session:
+        async with _db_engine.async_session() as session:
             await rubric_gen.generate_rubric(session, cluster_id)
     except Exception:
         logger.exception("rubric generation failed for cluster %s", cluster_id)
