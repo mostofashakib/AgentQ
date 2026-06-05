@@ -1,12 +1,13 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Activity, AlertTriangle, BarChart3, Radio } from 'lucide-react'
+import { Activity, AlertTriangle, BarChart3, GitBranch, Radio } from 'lucide-react'
 
 const nav = [
   { href: '/traces', label: 'Live Traces', icon: Radio },
   { href: '/violations', label: 'Violations', icon: AlertTriangle },
   { href: '/evals', label: 'Eval Scores', icon: BarChart3 },
+  { href: '/graph', label: 'Service Graph', icon: GitBranch },
 ]
 
 export function Sidebar() {

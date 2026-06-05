@@ -47,6 +47,46 @@ export interface EvalResult {
   created_at: string
 }
 
+export interface WaterfallNode {
+  id: string
+  trace_id: string
+  span_id: string
+  parent_span_id: string | null
+  name: string
+  span_kind: string
+  service_name: string
+  duration_ms: number
+  start_time_unix_nano: number
+  end_time_unix_nano: number
+  status_code: string
+  gen_ai_system: string | null
+  gen_ai_operation: string | null
+  gen_ai_tool_name: string | null
+  depth: number
+  children: WaterfallNode[]
+  attributes: Record<string, unknown>
+  created_at: string | null
+}
+
+export interface GraphNode {
+  id: string
+  service_name: string
+  operation: string
+  span_count: number
+  avg_duration_ms: number
+}
+
+export interface GraphEdge {
+  source: string
+  target: string
+  call_count: number
+}
+
+export interface ServiceGraph {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+}
+
 export const api = {
   traces: {
     list: (params?: { limit?: number; service?: string }) =>
@@ -65,6 +105,14 @@ export const api = {
   },
   evals: {
     list: () => fetch(`${API}/api/evals`).then(r => r.json() as Promise<EvalResult[]>),
+  },
+  waterfall: {
+    get: (traceId: string) =>
+      fetch(`${API}/api/traces/${traceId}/waterfall`).then(r => r.json() as Promise<WaterfallNode[]>),
+  },
+  graph: {
+    get: () =>
+      fetch(`${API}/api/graph`).then(r => r.json() as Promise<ServiceGraph>),
   },
   streamUrl: () => `${API}/api/stream`,
 }
