@@ -5,9 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from agentq.db.engine import create_tables
 from agentq.api.routes import traces, violations, evals, stream, intercept, graph
 from agentq.api.routes import behaviors as behaviors_route
+from agentq.api.routes import alerts as alerts_route
 from agentq.ingest.receiver import router as ingest_router
 from agentq.api.worker import guardrail_worker
 from agentq.behaviors.worker import behavior_worker
+from agentq.api.alerts.worker import alert_worker
 
 
 @asynccontextmanager
@@ -15,6 +17,7 @@ async def lifespan(app: FastAPI):
     await create_tables()
     task = asyncio.create_task(guardrail_worker())
     behavior_task = asyncio.create_task(behavior_worker())
+    alert_task = asyncio.create_task(alert_worker())
     yield
     task.cancel()
     try:
@@ -24,6 +27,11 @@ async def lifespan(app: FastAPI):
     behavior_task.cancel()
     try:
         await behavior_task
+    except asyncio.CancelledError:
+        pass
+    alert_task.cancel()
+    try:
+        await alert_task
     except asyncio.CancelledError:
         pass
 
@@ -45,6 +53,7 @@ app.include_router(stream.router)
 app.include_router(intercept.router)
 app.include_router(graph.router)
 app.include_router(behaviors_route.router)
+app.include_router(alerts_route.router)
 
 
 @app.get("/health")
