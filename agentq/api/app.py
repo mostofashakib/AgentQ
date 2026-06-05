@@ -3,7 +3,7 @@ import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from agentq.db.engine import create_tables
-from agentq.api.routes import traces, violations, evals, stream, intercept
+from agentq.api.routes import traces, violations, evals, stream, intercept, graph
 from agentq.ingest.receiver import router as ingest_router
 from agentq.api.worker import guardrail_worker
 
@@ -35,6 +35,7 @@ app.include_router(violations.router)
 app.include_router(evals.router)
 app.include_router(stream.router)
 app.include_router(intercept.router)
+app.include_router(graph.router)
 
 
 @app.get("/health")
