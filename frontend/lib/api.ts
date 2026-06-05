@@ -102,6 +102,26 @@ export interface BehaviorTrace {
   assigned_at: string
 }
 
+export interface AlertRule {
+  id: string
+  name: string
+  conditions: Record<string, string>
+  channels: Array<{ type: string; url?: string; [key: string]: unknown }>
+  frequency_limit: number
+  cooldown_minutes: number
+  enabled: boolean
+  created_at: string
+}
+
+export interface AlertHistory {
+  id: string
+  rule_id: string
+  trace_id: string
+  span_id: string | null
+  channel: string
+  fired_at: string
+}
+
 export const api = {
   traces: {
     list: (params?: { limit?: number; service?: string }) =>
@@ -141,6 +161,30 @@ export const api = {
       if (params?.limit) q.set('limit', String(params.limit))
       return fetch(`${API}/api/behaviors/${id}/traces?${q}`)
         .then(r => r.json() as Promise<BehaviorTrace[]>)
+    },
+  },
+  alerts: {
+    rules: {
+      list: (): Promise<AlertRule[]> =>
+        fetch(`${API}/api/alerts/rules`).then(r => r.json()),
+      create: (body: Omit<AlertRule, 'id' | 'created_at'>): Promise<AlertRule> =>
+        fetch(`${API}/api/alerts/rules`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }).then(r => r.json()),
+      update: (id: string, body: Omit<AlertRule, 'id' | 'created_at'>): Promise<AlertRule> =>
+        fetch(`${API}/api/alerts/rules/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }).then(r => r.json()),
+      delete: (id: string): Promise<{ deleted: string }> =>
+        fetch(`${API}/api/alerts/rules/${id}`, { method: 'DELETE' }).then(r => r.json()),
+    },
+    history: {
+      list: (limit = 100): Promise<AlertHistory[]> =>
+        fetch(`${API}/api/alerts/history?limit=${limit}`).then(r => r.json()),
     },
   },
   streamUrl: () => `${API}/api/stream`,

@@ -1,13 +1,14 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Activity, AlertTriangle, BarChart3, GitBranch, Layers, Radio } from 'lucide-react'
+import { Activity, AlertTriangle, BarChart3, Bell, GitBranch, Layers, Radio } from 'lucide-react'
 
 const nav = [
   { href: '/traces', label: 'Live Traces', icon: Radio },
   { href: '/violations', label: 'Violations', icon: AlertTriangle },
   { href: '/evals', label: 'Eval Scores', icon: BarChart3 },
   { href: '/behaviors', label: 'Behaviors', icon: Layers },
+  { href: '/alerts', label: 'Alerts', icon: Bell },
   { href: '/graph', label: 'Service Graph', icon: GitBranch },
 ]
 
