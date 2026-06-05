@@ -32,13 +32,11 @@ export default function AlertsPage() {
   const [history, setHistory] = useState<AlertHistory[]>([])
 
   useEffect(() => {
-    api.alerts.rules.list().then(setRules)
+    api.alerts.rules.list().then(setRules).catch(() => {})
   }, [])
 
   useEffect(() => {
-    if (tab === 'history') {
-      api.alerts.history.list().then(setHistory)
-    }
+    if (tab === 'history') api.alerts.history.list().then(setHistory).catch(() => {})
   }, [tab])
 
   function openNewForm() {
@@ -113,20 +111,28 @@ export default function AlertsPage() {
   }
 
   async function deleteRule(id: string) {
-    await api.alerts.rules.delete(id)
-    setRules(prev => prev.filter(r => r.id !== id))
+    try {
+      await api.alerts.rules.delete(id)
+      setRules(prev => prev.filter(r => r.id !== id))
+    } catch {
+      // no-op: keep UI state unchanged if delete fails
+    }
   }
 
   async function toggleEnabled(rule: AlertRule) {
-    const updated = await api.alerts.rules.update(rule.id, {
-      name: rule.name,
-      conditions: rule.conditions,
-      channels: rule.channels,
-      frequency_limit: rule.frequency_limit,
-      cooldown_minutes: rule.cooldown_minutes,
-      enabled: !rule.enabled,
-    })
-    setRules(prev => prev.map(r => (r.id === rule.id ? updated : r)))
+    try {
+      const updated = await api.alerts.rules.update(rule.id, {
+        name: rule.name,
+        conditions: rule.conditions,
+        channels: rule.channels,
+        frequency_limit: rule.frequency_limit,
+        cooldown_minutes: rule.cooldown_minutes,
+        enabled: !rule.enabled,
+      })
+      setRules(prev => prev.map(r => (r.id === rule.id ? updated : r)))
+    } catch {
+      // no-op: keep UI state unchanged if toggle fails
+    }
   }
 
   return (
