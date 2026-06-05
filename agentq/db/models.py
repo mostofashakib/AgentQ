@@ -44,24 +44,9 @@ class Violation(Base):
     rule_id: Mapped[str] = mapped_column(String)
     threat_class: Mapped[str] = mapped_column(String, index=True)
     severity: Mapped[str] = mapped_column(String)
-    blocked: Mapped[bool] = mapped_column(Boolean, default=False)
     description: Mapped[str] = mapped_column(String)
     evidence: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     chain_span_ids: Mapped[list] = mapped_column(JSON, default=list)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-
-
-class EvalResult(Base):
-    __tablename__ = "eval_results"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    trace_id: Mapped[str] = mapped_column(String, index=True, unique=True)
-    task_completion: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    tool_accuracy: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    efficiency: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    judge_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    judge_rationale: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    judge_flagged: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
 

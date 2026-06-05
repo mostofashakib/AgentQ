@@ -20,7 +20,7 @@ async def url_in_output(span: SpanRecord) -> list[ViolationRecord]:
     return [ViolationRecord(
         trace_id=span.trace_id, span_id=span.span_id,
         rule_id="exfiltration.url_in_output",
-        threat_class="exfiltration", severity="medium", blocked=False,
+        threat_class="exfiltration", severity="medium",
         description="Model output contains a URL that may indicate data exfiltration",
         evidence=evidence[:200],
     )]
@@ -34,7 +34,7 @@ async def base64_in_output(span: SpanRecord) -> list[ViolationRecord]:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="exfiltration.base64_in_output",
-            threat_class="exfiltration", severity="high", blocked=True,
+            threat_class="exfiltration", severity="high",
             description="Model output contains base64-encoded data",
             evidence=completion[:200],
         )]
@@ -51,7 +51,7 @@ async def sensitive_key_in_output(span: SpanRecord) -> list[ViolationRecord]:
     return [ViolationRecord(
         trace_id=span.trace_id, span_id=span.span_id,
         rule_id="exfiltration.sensitive_key_in_output",
-        threat_class="exfiltration", severity="critical", blocked=True,
+        threat_class="exfiltration", severity="critical",
         description="Model output contains what appears to be a credential or API key",
         evidence=m.group(0)[:100],
     )]
@@ -68,7 +68,7 @@ async def pii_in_output(span: SpanRecord) -> list[ViolationRecord]:
     return [ViolationRecord(
         trace_id=span.trace_id, span_id=span.span_id,
         rule_id="exfiltration.pii_in_output",
-        threat_class="exfiltration", severity="critical", blocked=True,
+        threat_class="exfiltration", severity="critical",
         description=f"Model output contains PII ({label})",
         evidence=matched[:100],
     )]
@@ -86,7 +86,7 @@ async def outbound_http_tool(span: SpanRecord) -> list[ViolationRecord]:
     return [ViolationRecord(
         trace_id=span.trace_id, span_id=span.span_id,
         rule_id="exfiltration.outbound_http",
-        threat_class="exfiltration", severity="high", blocked=False,
+        threat_class="exfiltration", severity="high",
         description=f"Agent made outbound HTTP call via tool '{tool}'",
         evidence=url_str[:200],
     )]

@@ -15,7 +15,6 @@ def _build_body(event: AlertEvent, rule_name: str) -> tuple[str, str]:
             f"Rule ID: {v.rule_id}\n"
             f"Trace ID: {v.trace_id}\n"
             f"Span ID: {v.span_id}\n"
-            f"Blocked: {v.blocked}\n"
             f"Description: {v.description}\n"
         )
     else:

@@ -19,7 +19,6 @@ async def test_injection_user_content():
     results = await injection.user_content_injection(span)
     assert len(results) == 1
     assert results[0].rule_id == "injection.user_content"
-    assert results[0].blocked is True
 
 
 async def test_injection_clean():

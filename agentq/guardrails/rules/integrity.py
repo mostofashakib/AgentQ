@@ -7,7 +7,7 @@ async def span_time_inversion(span: SpanRecord) -> list[ViolationRecord]:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="integrity.time_inversion",
-            threat_class="integrity", severity="low", blocked=False,
+            threat_class="integrity", severity="low",
             description="Span end time is not after start time",
             evidence=f"start={span.start_time_unix_nano} end={span.end_time_unix_nano}",
         )]
@@ -19,7 +19,7 @@ async def missing_service_name(span: SpanRecord) -> list[ViolationRecord]:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="integrity.missing_service_name",
-            threat_class="integrity", severity="low", blocked=False,
+            threat_class="integrity", severity="low",
             description="Span is missing a service.name resource attribute",
         )]
     return []
@@ -33,7 +33,7 @@ async def model_call_missing_gen_ai_attrs(span: SpanRecord) -> list[ViolationRec
     return [ViolationRecord(
         trace_id=span.trace_id, span_id=span.span_id,
         rule_id="integrity.missing_gen_ai_attrs",
-        threat_class="integrity", severity="low", blocked=False,
+        threat_class="integrity", severity="low",
         description="CLIENT span is missing gen_ai.system and gen_ai.operation.name attributes",
     )]
 
@@ -44,7 +44,7 @@ async def empty_trace_id(span: SpanRecord) -> list[ViolationRecord]:
             trace_id=span.trace_id or "MISSING",
             span_id=span.span_id,
             rule_id="integrity.empty_trace_id",
-            threat_class="integrity", severity="medium", blocked=False,
+            threat_class="integrity", severity="medium",
             description="Span has an empty or missing trace_id",
         )]
     return []

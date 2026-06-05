@@ -12,7 +12,7 @@ async def high_risk_tool_call(span: SpanRecord) -> list[ViolationRecord]:
     return [ViolationRecord(
         trace_id=span.trace_id, span_id=span.span_id,
         rule_id="scope.high_risk_tool",
-        threat_class="scope", severity="high", blocked=True,
+        threat_class="scope", severity="high",
         description=f"High-risk tool invoked: {tool}",
         evidence=tool,
     )]
@@ -27,7 +27,7 @@ async def unsanctioned_external_call(span: SpanRecord) -> list[ViolationRecord]:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="scope.unsanctioned_tool",
-            threat_class="scope", severity="medium", blocked=False,
+            threat_class="scope", severity="medium",
             description=f"Tool '{tool}' is not in the declared allowed list",
             evidence=f"allowed={allowed}",
         )]
@@ -40,7 +40,7 @@ async def excessive_tool_calls(span: SpanRecord) -> list[ViolationRecord]:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="scope.excessive_tool_calls",
-            threat_class="scope", severity="medium", blocked=False,
+            threat_class="scope", severity="medium",
             description=f"Trace has {call_count} tool calls, exceeding limit of 20",
             evidence=str(call_count),
         )]
@@ -57,7 +57,7 @@ async def destructive_action_without_confirmation(span: SpanRecord) -> list[Viol
     return [ViolationRecord(
         trace_id=span.trace_id, span_id=span.span_id,
         rule_id="scope.destructive_without_confirmation",
-        threat_class="scope", severity="critical", blocked=True,
+        threat_class="scope", severity="critical",
         description=f"Destructive tool '{tool}' invoked without user confirmation",
         evidence=tool,
     )]

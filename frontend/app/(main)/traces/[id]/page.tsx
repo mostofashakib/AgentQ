@@ -144,12 +144,10 @@ function DagGraph({
           const nx = x + padX
           const ny = y + padY
           const viols = violMap.get(span.span_id) ?? []
-          const isBlocked = viols.some(v => v.blocked)
           const isSelected = selected?.span_id === span.span_id
 
           let nodeStroke = '#1E2D4A'
           if (isSelected) nodeStroke = '#00D4FF'
-          else if (isBlocked) nodeStroke = '#ef4444'
 
           const fill = isSelected ? '#001E30' : '#0D1526'
           const truncName = span.name.length > 20 ? span.name.slice(0, 19) + '…' : span.name
@@ -169,7 +167,7 @@ function DagGraph({
                 fill={fill} stroke={nodeStroke} strokeWidth={isSelected ? 1.5 : 1}
               />
               {/* Span name */}
-              <text x={nx + 8} y={ny + 14} fontSize={10} fill={isBlocked ? '#FC8181' : '#E8EDF5'} fontFamily="monospace">
+              <text x={nx + 8} y={ny + 14} fontSize={10} fill="#E8EDF5" fontFamily="monospace">
                 {truncName}
               </text>
               {/* Kind label */}
@@ -519,14 +517,6 @@ export default function TraceDetailPage({ params }: { params: Promise<{ id: stri
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--color-red)' }}>{v.rule_id}</span>
-                      {v.blocked && (
-                        <span style={{
-                          fontSize: 10, background: 'rgba(252,129,129,0.2)',
-                          color: 'var(--color-red)', padding: '1px 6px', borderRadius: 3, fontFamily: 'monospace',
-                        }}>
-                          BLOCKED
-                        </span>
-                      )}
                     </div>
                     <p style={{ fontSize: 11, color: 'var(--color-muted)', margin: '0 0 4px' }}>{v.description}</p>
                     {v.evidence && (

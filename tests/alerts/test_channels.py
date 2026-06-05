@@ -9,7 +9,7 @@ def _violation_event() -> ViolationAlertEvent:
     return ViolationAlertEvent(violation=ViolationRecord(
         trace_id="t1", span_id="s1", rule_id="r1",
         threat_class="behavioral", severity="high",
-        blocked=True, description="test violation",
+        description="test violation",
     ))
 
 
@@ -33,7 +33,6 @@ async def test_webhook_sends_violation_payload(monkeypatch):
     assert posted["json"]["type"] == "violation"
     assert posted["json"]["severity"] == "high"
     assert posted["json"]["trace_id"] == "t1"
-    assert posted["json"]["blocked"] is True
 
 
 async def test_webhook_sends_behavior_payload(monkeypatch):

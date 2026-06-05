@@ -1,8 +1,8 @@
 # AgentQ
 
-AI Agent Reliability, Evaluation & Observability Control Plane.
+AI Agent Observability Control Plane.
 
-AgentQ is a lightweight backend + dashboard that sits between your AI agents and production. It ingests OpenTelemetry spans, runs 21 guardrail rules in real time, scores every trace automatically, clusters similar agent behaviors, and surfaces everything in a live dashboard with configurable multi-channel alerts.
+AgentQ is a lightweight backend + dashboard that sits between your AI agents and production. It ingests OpenTelemetry spans, runs 21 guardrail rules in real time, clusters similar agent behaviors, and surfaces everything in a live dashboard with configurable multi-channel alerts.
 
 ---
 
@@ -15,30 +15,29 @@ AgentQ is a lightweight backend + dashboard that sits between your AI agents and
 │ • OpenTelemetry GenAI       │            │ • Policy Verification Engine         │
 │   Processor (OTLP/HTTP JSON)│            │ • Real-time PII & Leak Extractor     │
 │ • Model Context Protocol    ├───────────>│ • Tool Execution Interceptor         │
-│   Tracer (mcp.* attributes) │            │   (POST /api/intercept)              │
-│ • Normalized State Capture  │            │ • 21 rules across 5 threat classes   │
-└──────────────┬──────────────┘            └──────────┬───────────────────────────┘
+│   Tracer (mcp.* attributes) │            │   (POST /api/intercept — observe     │
+│ • Normalized State Capture  │            │    pre-execution tool violations)    │
+└──────────────┬──────────────┘            │ • 21 rules across 5 threat classes   │
+               │                           └──────────┬───────────────────────────┘
                │                                      │
                ▼                                      ▼
-┌─────────────────────────────┐            ┌──────────────────────────────────────┐
-│    3. DYNAMIC EVAL ENGINE   │            │  4. BEHAVIORS & ALERTS               │
-│                             │            │                                      │
-│ • Tiered Reward Engine      │            │ • Composite embedding (structural +  │
-│ • N-Gram Semantic Evaluator │            │   semantic, all-MiniLM-L6-v2)        │
-│   (ROUGE-1 F1)              │            │ • Nearest-neighbour trace clustering │
-│ • Asynchronous LLM-as-Judge │            │ • LLM rubric generation (auto @10)   │
-│   (Anthropic/OpenAI/Ollama/ │            │ • Rule-based alert dispatch          │
-│    OpenRouter)              │            │   (webhook / Slack / SMTP email)     │
-└──────────────┬──────────────┘            └──────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                       3. BEHAVIORS & ALERTS                                      │
+│                                                                                  │
+│ • Composite embedding (structural + semantic, all-MiniLM-L6-v2)                 │
+│ • Nearest-neighbour trace clustering (configurable cosine threshold)             │
+│ • LLM rubric generation (auto-triggered at 10 traces per cluster)                │
+│ • Rule-based alert dispatch (webhook / Slack / SMTP email)                       │
+└──────────────┬───────────────────────────────────────────────────────────────────┘
                │
                ▼
 ┌──────────────────────────────────────────────────────────────────────────────────┐
-│                          5. USER ANALYTICS UI                                    │
+│                          4. USER ANALYTICS UI                                    │
 │                                                                                  │
 │ • Live Traces feed (SSE)   • Waterfall Timeline (depth-indented span tree)      │
 │ • Span Inspector           • Service Graph (SVG force-directed, live physics)   │
 │ • Violation Dashboard      • Behaviors (cluster list, rubric chips, traces)     │
-│ • Eval Score Board         • Alerts (rule CRUD, history, multi-channel config)  │
+│ • Alerts (rule CRUD, history, multi-channel config)                              │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -79,15 +78,7 @@ AgentQ is a lightweight backend + dashboard that sits between your AI agents and
 | `integrity.missing_gen_ai_attrs` | integrity | low |
 | `integrity.empty_trace_id` | integrity | medium |
 
-**Tool Execution Interceptor** — call `POST /api/intercept` before executing a tool to get a real-time allow/deny decision before any side effects occur.
-
-### Dynamic Eval Engine
-| Metric | How |
-|---|---|
-| `task_completion` | ROUGE-1 F1 between actual and expected output |
-| `tool_accuracy` | Successful tool calls / total tool calls |
-| `efficiency` | `optimal_steps / actual_steps`, capped at 1.0 |
-| `judge_score` | LLM-as-judge (0–1) with rationale; providers: Anthropic, OpenAI, Ollama, OpenRouter |
+**Tool Execution Interceptor** — call `POST /api/intercept` before executing a tool to observe pre-execution violations in real time. The endpoint always returns `allowed=true`; violations are surfaced in the `violations` list for the caller to inspect.
 
 ### Tracing
 | Feature | Detail |
@@ -118,12 +109,11 @@ AgentQ is a lightweight backend + dashboard that sits between your AI agents and
 |---|---|
 | Live Traces | SSE-driven real-time feed with AnimatePresence, violation counter |
 | DAG Trace Graph | SVG tree layout with cubic bezier edges, node colors, violation badges |
-| Span Inspector | OTel attribute table + per-span violation detail with BLOCKED indicator |
+| Span Inspector | OTel attribute table + per-span violation detail |
 | Episode Replay Timeline | Horizontal scrubber — spans highlight as playhead advances; Play/Pause/Reset |
 | Waterfall Timeline | Depth-indented span tree derived from `parent_span_id` chain |
 | Service Graph | SVG force-directed graph; node size = span count, edge thickness = call count |
-| Violation Dashboard | Stat cards (total / critical / blocked / injections), threat + severity filters |
-| Eval Score Board | ROUGE/accuracy/efficiency gauges, expandable judge rationale |
+| Violation Dashboard | Stat cards (total / critical / injections), threat + severity filters |
 | Behaviors | Cluster list with rubric chips, trace count, member traces |
 | Alerts | Rule CRUD with inline form + alert history table |
 
@@ -136,11 +126,37 @@ AgentQ is a lightweight backend + dashboard that sits between your AI agents and
 ```bash
 git clone <repo-url> agentq
 cd agentq
-cp .env.example .env          # add ANTHROPIC_API_KEY (or other judge provider)
+cp .env.example .env          # add ANTHROPIC_API_KEY (used for rubric generation)
 ./run.sh                      # starts backend :8000 + dashboard :3000
 ```
 
 To stop: `./kill.sh`
+
+---
+
+## Demo Mode
+
+Demo mode seeds the dashboard with realistic sample data on first launch — 6 agent traces, 10 guardrail violations across all threat classes, 3 behavior clusters with rubrics, and 2 alert rules. No real agent required.
+
+```bash
+./demo.sh           # start with demo data pre-loaded
+./demo.sh --reset   # wipe demo data and re-seed (useful after schema changes)
+```
+
+**What's included in the demo dataset:**
+
+| Trace | Service | Scenario | Violations |
+|---|---|---|---|
+| `demo-research-001` | research-agent | Web search + summarize | None |
+| `demo-code-001` | code-assistant | File read + exec_command | `scope.high_risk_tool` |
+| `demo-injection-001` | customer-chatbot | Jailbreak attempt | `injection.user_content` |
+| `demo-exfil-001` | data-pipeline | API key in output | `exfiltration.sensitive_key_in_output` |
+| `demo-pii-001` | support-bot | SSN + email in response | `exfiltration.pii_in_output` |
+| `demo-loop-001` | automation-agent | Repeated delete_file calls | `behavioral.infinite_loop` + `scope.destructive_without_confirmation` |
+
+The demo API endpoints (`POST /api/demo/seed`, `POST /api/demo/reset`) are only mounted when `DEMO_MODE=true`.
+
+All demo data has trace IDs prefixed with `demo-` and can be cleared at any time with `POST /api/demo/reset`.
 
 **OTLP endpoint:** `http://<your-agentq-host>:8000/v1/traces`  
 **Dashboard:** `http://<your-agentq-host>:3000`  
@@ -167,7 +183,7 @@ openlit.init(otlp_endpoint="http://<your-agentq-host>:8000/v1/traces")
 
 For MCP agents, spans with any `mcp.*` attribute are automatically normalized — no extra configuration needed.
 
-**Pre-execution intercept:**
+**Pre-execution intercept (observability):**
 
 ```python
 import httpx
@@ -178,8 +194,8 @@ resp = httpx.post("http://<your-agentq-host>:8000/api/intercept", json={
     "tool_name": "send_email",
     "attributes": {"agentq.user_confirmed": False}
 })
-if not resp.json()["allowed"]:
-    raise RuntimeError(resp.json()["reason"])
+# Always returns allowed=true; violations list contains any guardrail hits
+violations = resp.json()["violations"]
 ```
 
 ---
@@ -189,12 +205,11 @@ if not resp.json()["allowed"]:
 ```env
 DATABASE_URL=sqlite+aiosqlite:///./agentq.db
 
-JUDGE_PROVIDER=anthropic          # anthropic | openai | ollama | openrouter
-JUDGE_MODEL=claude-sonnet-4-6
+# Demo mode — seeds realistic sample data on startup (use ./demo.sh to activate)
+DEMO_MODE=false
+
+JUDGE_MODEL=claude-sonnet-4-6     # used for LLM rubric generation
 ANTHROPIC_API_KEY=
-OPENAI_API_KEY=
-OLLAMA_BASE_URL=http://localhost:11434
-OPENROUTER_API_KEY=
 
 # Legacy webhook (always fires on violations)
 WEBHOOK_ENABLED=false
@@ -228,8 +243,6 @@ SMTP_TO=
 | `GET` | `/api/traces/{trace_id}/waterfall` | Span tree for waterfall visualization |
 | `GET` | `/api/graph` | Service graph (nodes + edges) |
 | `GET` | `/api/violations` | List violations (threat_class, severity, trace_id filters) |
-| `GET` | `/api/evals` | List eval results |
-| `GET` | `/api/evals/{trace_id}` | Eval result for a specific trace |
 | `GET` | `/api/behaviors` | List behavior clusters |
 | `GET` | `/api/behaviors/{id}` | Cluster detail + member trace IDs |
 | `POST` | `/api/behaviors/{id}/rubric` | Trigger LLM rubric generation |
@@ -241,12 +254,14 @@ SMTP_TO=
 | `GET` | `/api/alerts/history` | Paginated alert history |
 | `GET` | `/api/stream` | SSE stream — real-time span and violation events |
 | `GET` | `/health` | Health check |
+| `POST` | `/api/demo/seed` | Seed demo data (only when `DEMO_MODE=true`) |
+| `POST` | `/api/demo/reset` | Clear and re-seed demo data (only when `DEMO_MODE=true`) |
 
 ---
 
 ## Tech Stack
 
-**Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0 async, aiosqlite / asyncpg, Pydantic v2, sentence-transformers (all-MiniLM-L6-v2), aiosmtplib, ROUGE-score, httpx, sse-starlette, uv
+**Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0 async, aiosqlite / asyncpg, Pydantic v2, sentence-transformers (all-MiniLM-L6-v2), aiosmtplib, httpx, sse-starlette, uv
 
 **Frontend:** Next.js 16 App Router, Tailwind CSS v4, Framer Motion, Lucide icons
 

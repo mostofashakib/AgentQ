@@ -11,7 +11,6 @@ async def dispatch_violation(violation: ViolationRecord) -> None:
         "rule_id": violation.rule_id,
         "threat_class": violation.threat_class,
         "severity": violation.severity,
-        "blocked": violation.blocked,
         "description": violation.description,
         "trace_id": violation.trace_id,
         "span_id": violation.span_id,

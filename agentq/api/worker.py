@@ -24,7 +24,6 @@ async def _save_violations(violations: list[ViolationRecord]) -> None:
                 rule_id=v.rule_id,
                 threat_class=v.threat_class,
                 severity=v.severity,
-                blocked=v.blocked,
                 description=v.description,
                 evidence=v.evidence,
                 chain_span_ids=v.chain_span_ids,

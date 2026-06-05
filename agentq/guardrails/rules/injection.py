@@ -16,7 +16,7 @@ async def user_content_injection(span: SpanRecord) -> list[ViolationRecord]:
     return [ViolationRecord(
         trace_id=span.trace_id, span_id=span.span_id,
         rule_id="injection.user_content",
-        threat_class="injection", severity="high", blocked=True,
+        threat_class="injection", severity="high",
         description="User message contains prompt injection pattern",
         evidence=evidence[:300],
     )]
@@ -30,7 +30,7 @@ async def system_prompt_override(span: SpanRecord) -> list[ViolationRecord]:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="injection.system_prompt_override",
-            threat_class="injection", severity="critical", blocked=True,
+            threat_class="injection", severity="critical",
             description="Tool output attempts to override system prompt",
             evidence=text[:300],
         )]
@@ -49,7 +49,7 @@ async def indirect_injection_via_retrieval(span: SpanRecord) -> list[ViolationRe
     return [ViolationRecord(
         trace_id=span.trace_id, span_id=span.span_id,
         rule_id="injection.indirect_via_retrieval",
-        threat_class="injection", severity="high", blocked=False,
+        threat_class="injection", severity="high",
         description="Retrieved content contains prompt injection attempt",
         evidence=evidence[:300],
     )]
@@ -65,7 +65,7 @@ async def role_confusion_attack(span: SpanRecord) -> list[ViolationRecord]:
     return [ViolationRecord(
         trace_id=span.trace_id, span_id=span.span_id,
         rule_id="injection.role_confusion",
-        threat_class="injection", severity="medium", blocked=False,
+        threat_class="injection", severity="medium",
         description="Prompt contains role confusion / persona hijack attempt",
         evidence=evidence,
     )]

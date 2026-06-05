@@ -11,7 +11,6 @@ async def send(url: str, event: AlertEvent) -> None:
             "rule_id": v.rule_id,
             "threat_class": v.threat_class,
             "severity": v.severity,
-            "blocked": v.blocked,
             "description": v.description,
             "trace_id": v.trace_id,
             "span_id": v.span_id,
