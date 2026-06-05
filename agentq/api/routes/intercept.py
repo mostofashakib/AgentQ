@@ -62,16 +62,6 @@ async def intercept_tool_call(req: InterceptRequest) -> InterceptResponse:
     )
 
     violations: list[ViolationRecord] = await _engine.run_all(synthetic)
-    blocking = [v for v in violations if v.blocked]
-
-    if blocking:
-        first = blocking[0]
-        return InterceptResponse(
-            allowed=False,
-            rule_id=first.rule_id,
-            reason=first.description,
-            violations=[v.model_dump() for v in violations],
-        )
 
     return InterceptResponse(
         allowed=True,

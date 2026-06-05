@@ -51,7 +51,7 @@ async def test_alert_worker_dispatches_matching_rule(monkeypatch):
     v = ViolationRecord(
         trace_id="t1", span_id="s1", rule_id="r1",
         threat_class="behavioral", severity="high",
-        blocked=False, description="test",
+        description="test",
     )
     await fresh_queue.put(ViolationAlertEvent(violation=v))
 
@@ -102,7 +102,7 @@ async def test_alert_worker_skips_non_matching_rule(monkeypatch):
     v = ViolationRecord(
         trace_id="t2", span_id="s2", rule_id="r2",
         threat_class="injection", severity="high",
-        blocked=False, description="test",
+        description="test",
     )
     await fresh_queue.put(ViolationAlertEvent(violation=v))
 
@@ -149,7 +149,7 @@ async def test_alert_worker_respects_cooldown(monkeypatch):
 
     monkeypatch.setattr(aw, "_dispatch_channel", fake_dispatch)
 
-    v = ViolationRecord(trace_id="t3", span_id="s3", rule_id="r3", threat_class="behavioral", severity="low", blocked=False, description="x")
+    v = ViolationRecord(trace_id="t3", span_id="s3", rule_id="r3", threat_class="behavioral", severity="low", description="x")
 
     # First event — should fire
     await fresh_queue.put(ViolationAlertEvent(violation=v))

@@ -27,12 +27,6 @@ async def test_list_violations_empty(client):
     assert isinstance(r.json(), list)
 
 
-async def test_list_evals_empty(client):
-    r = await client.get("/api/evals")
-    assert r.status_code == 200
-    assert isinstance(r.json(), list)
-
-
 async def test_ingest_json(client):
     payload = {
         "resourceSpans": [{

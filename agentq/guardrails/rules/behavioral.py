@@ -13,7 +13,7 @@ async def goal_drift(span: SpanRecord) -> list[ViolationRecord]:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="behavioral.goal_drift",
-            threat_class="behavioral", severity="medium", blocked=False,
+            threat_class="behavioral", severity="medium",
             description="Agent task objective has drifted from original goal",
             evidence=f"original='{original_goal[:100]}' current='{current_task[:100]}'",
         )]
@@ -29,7 +29,7 @@ async def infinite_loop_detection(span: SpanRecord) -> list[ViolationRecord]:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="behavioral.infinite_loop",
-            threat_class="behavioral", severity="high", blocked=True,
+            threat_class="behavioral", severity="high",
             description=f"Span '{span.name}' has repeated {occurrences} times in this trace",
             evidence=f"name='{span.name}' count={occurrences}",
         )]
@@ -45,7 +45,7 @@ async def hallucinated_tool(span: SpanRecord) -> list[ViolationRecord]:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="behavioral.hallucinated_tool",
-            threat_class="behavioral", severity="high", blocked=True,
+            threat_class="behavioral", severity="high",
             description=f"Agent invoked tool '{tool}' which is not in the declared tool schema",
             evidence=f"tool='{tool}' declared={declared_tools}",
         )]
@@ -58,7 +58,7 @@ async def token_explosion(span: SpanRecord) -> list[ViolationRecord]:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="behavioral.token_explosion",
-            threat_class="behavioral", severity="medium", blocked=False,
+            threat_class="behavioral", severity="medium",
             description=f"Span used {total} tokens, exceeding threshold of {_TOKEN_EXPLOSION_THRESHOLD}",
             evidence=f"input={span.gen_ai_input_tokens} output={span.gen_ai_output_tokens}",
         )]

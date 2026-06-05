@@ -53,7 +53,6 @@ async def _flush_guardrails() -> list[ViolationRecord]:
                         rule_id=v.rule_id,
                         threat_class=v.threat_class,
                         severity=v.severity,
-                        blocked=v.blocked,
                         description=v.description,
                         evidence=v.evidence,
                         chain_span_ids=v.chain_span_ids,
@@ -129,7 +128,6 @@ async def test_scenario_injection_user_content_pipeline(client):
     data = r2.json()
     assert len(data) >= 1
     assert any(v["rule_id"] == "injection.user_content" for v in data)
-    assert any(v["blocked"] is True for v in data if v["rule_id"] == "injection.user_content")
 
 
 # ─── Scenario 2: system prompt override via tool result ───────────────────────
@@ -365,10 +363,10 @@ async def test_scenario_mcp_injection_via_tool_output(client):
 
 # ─── Scenario 8: pre-execution intercept ──────────────────────────────────────
 
-async def test_scenario_intercept_blocks_dangerous_tool(client):
+async def test_scenario_intercept_detects_dangerous_tool(client):
     """
     Agent calls /api/intercept before executing exec_command.
-    Expected: allowed=False with scope.high_risk_tool as the blocking rule.
+    Expected: always allowed=True but violations list contains the high-risk rule.
     """
     r = await client.post("/api/intercept", json={
         "trace_id": "e2e-intercept-001",
@@ -379,9 +377,9 @@ async def test_scenario_intercept_blocks_dangerous_tool(client):
     })
     assert r.status_code == 200
     data = r.json()
-    assert data["allowed"] is False
-    assert data["rule_id"] is not None
-    assert data["reason"] is not None
+    assert data["allowed"] is True
+    rule_ids = [v["rule_id"] for v in data["violations"]]
+    assert "scope.high_risk_tool" in rule_ids
 
 
 async def test_scenario_intercept_allows_safe_tool(client):
@@ -400,8 +398,8 @@ async def test_scenario_intercept_allows_safe_tool(client):
     assert data["allowed"] is True
 
 
-async def test_scenario_intercept_blocks_send_email(client):
-    """send_email is blocked unless user_confirmed."""
+async def test_scenario_intercept_detects_send_email(client):
+    """send_email triggers a high-risk violation but is still allowed (observability only)."""
     r = await client.post("/api/intercept", json={
         "trace_id": "e2e-intercept-003",
         "span_id": "pre-003",
@@ -409,7 +407,9 @@ async def test_scenario_intercept_blocks_send_email(client):
         "attributes": {"agentq.user_confirmed": False},
     })
     assert r.status_code == 200
-    assert r.json()["allowed"] is False
+    data = r.json()
+    assert data["allowed"] is True
+    assert len(data["violations"]) > 0
 
 
 async def test_scenario_intercept_response_shape(client):
@@ -651,84 +651,6 @@ async def test_scenario_clean_agent_no_violations(client):
     r2 = await client.get("/api/violations?trace_id=e2e-clean-001")
     assert r2.status_code == 200
     assert r2.json() == []
-
-
-# ─── Scenario 16: eval scoring pipeline ──────────────────────────────────────
-
-async def test_scenario_eval_score_trace_completion(client):
-    """
-    Ingest a trace with a completion that matches the expected output perfectly.
-    Use the eval engine directly to score it and verify task_completion=1.0.
-    """
-    from agentq.db.models import SpanRecord
-    from agentq.evals.models import EvalRequest
-    from agentq.evals.engine import score_trace
-
-    span = SpanRecord(
-        trace_id="e2e-eval-001", span_id="ev001", name="chat",
-        span_kind="CLIENT", service_name="eval-agent",
-        start_time_unix_nano=0, end_time_unix_nano=1_000_000,
-        duration_ms=1.0,
-        attributes={"gen_ai.completion": "Paris is the capital of France."},
-    )
-    req = EvalRequest(
-        trace_id="e2e-eval-001",
-        span_records=[span],
-        expected_output="Paris is the capital of France.",
-        optimal_steps=1,
-    )
-    result = await score_trace(req)
-    assert result.task_completion == 1.0
-    assert result.tool_accuracy == 1.0
-    assert result.efficiency == 1.0
-    assert result.judge_score is None  # no goal set, no judge
-
-
-async def test_scenario_eval_score_partial_tool_failure(client):
-    """
-    Trace with one successful and one failed tool call → tool_accuracy=0.5.
-    """
-    from agentq.db.models import SpanRecord
-    from agentq.evals.models import EvalRequest
-    from agentq.evals.engine import score_trace
-
-    def make(sid, tool, status="STATUS_CODE_OK"):
-        return SpanRecord(
-            trace_id="e2e-eval-002", span_id=sid, name=sid,
-            span_kind="CLIENT", service_name="eval-agent",
-            start_time_unix_nano=0, end_time_unix_nano=1_000_000,
-            duration_ms=1.0, gen_ai_tool_name=tool, status_code=status,
-        )
-
-    req = EvalRequest(
-        trace_id="e2e-eval-002",
-        span_records=[
-            make("ev001", "search", "STATUS_CODE_OK"),
-            make("ev002", "calendar", "STATUS_CODE_ERROR"),
-        ],
-    )
-    result = await score_trace(req)
-    assert result.tool_accuracy == pytest.approx(0.5)
-
-
-async def test_scenario_eval_score_over_budget_efficiency(client):
-    """Trace took 10 steps when 5 were optimal → efficiency=0.5."""
-    from agentq.db.models import SpanRecord
-    from agentq.evals.models import EvalRequest
-    from agentq.evals.engine import score_trace
-
-    spans = [
-        SpanRecord(
-            trace_id="e2e-eval-003", span_id=f"ev{i}", name=f"step{i}",
-            span_kind="CLIENT", service_name="eval-agent",
-            start_time_unix_nano=i * 1_000_000, end_time_unix_nano=(i + 1) * 1_000_000,
-            duration_ms=1.0,
-        )
-        for i in range(10)
-    ]
-    req = EvalRequest(trace_id="e2e-eval-003", span_records=spans, optimal_steps=5)
-    result = await score_trace(req)
-    assert result.efficiency == pytest.approx(0.5)
 
 
 # ─── Scenario 17: integrity violations ───────────────────────────────────────

@@ -18,7 +18,7 @@ def _violation_event(severity="high", threat_class="behavioral", rule_id="r1") -
     v = ViolationRecord(
         trace_id="t1", span_id="s1", rule_id=rule_id,
         threat_class=threat_class, severity=severity,
-        blocked=False, description="test",
+        description="test",
     )
     return ViolationAlertEvent(violation=v)
 

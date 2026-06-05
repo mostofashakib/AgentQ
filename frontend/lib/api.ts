@@ -28,22 +28,9 @@ export interface Violation {
   rule_id: string
   threat_class: 'injection' | 'scope' | 'exfiltration' | 'behavioral' | 'integrity'
   severity: 'low' | 'medium' | 'high' | 'critical'
-  blocked: boolean
   description: string
   evidence: string | null
   chain_span_ids: string[]
-  created_at: string
-}
-
-export interface EvalResult {
-  id: string
-  trace_id: string
-  task_completion: number | null
-  tool_accuracy: number | null
-  efficiency: number | null
-  judge_score: number | null
-  judge_rationale: string | null
-  judge_flagged: boolean
   created_at: string
 }
 
@@ -137,9 +124,6 @@ export const api = {
       if (params?.severity) q.set('severity', params.severity)
       return fetch(`${API}/api/violations?${q}`).then(r => r.json() as Promise<Violation[]>)
     },
-  },
-  evals: {
-    list: () => fetch(`${API}/api/evals`).then(r => r.json() as Promise<EvalResult[]>),
   },
   waterfall: {
     get: (traceId: string) =>

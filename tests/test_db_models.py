@@ -1,6 +1,6 @@
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from agentq.db.models import Base, Span, Violation, EvalResult, SpanRecord
+from agentq.db.models import Base, Span, Violation, SpanRecord
 
 
 @pytest.fixture
@@ -39,7 +39,6 @@ async def test_violation_insert(session):
         rule_id="injection.user_content",
         threat_class="injection",
         severity="high",
-        blocked=True,
         description="Injection detected",
         evidence="ignore all previous",
     )
@@ -47,7 +46,6 @@ async def test_violation_insert(session):
     await session.commit()
     result = await session.get(Violation, v.id)
     assert result.threat_class == "injection"
-    assert result.blocked is True
 
 
 async def test_span_record_pydantic():

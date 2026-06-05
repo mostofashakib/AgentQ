@@ -15,7 +15,6 @@ class ViolationRecord(BaseModel):
     rule_id: str
     threat_class: ThreatClass
     severity: Severity
-    blocked: bool = False
     description: str
     evidence: Optional[str] = None
     chain_span_ids: list[str] = []

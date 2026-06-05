@@ -3,12 +3,9 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./agentq.db"
-    judge_provider: str = "anthropic"
-    judge_model: str = "claude-3-5-sonnet-20241022"
+    demo_mode: bool = False
+    judge_model: str = "claude-sonnet-4-6"
     anthropic_api_key: str = ""
-    openai_api_key: str = ""
-    ollama_base_url: str = "http://localhost:11434"
-    openrouter_api_key: str = ""
     webhook_url: str = ""
     webhook_enabled: bool = False
     smtp_host: str = ""

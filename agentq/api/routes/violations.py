@@ -35,7 +35,6 @@ def _v_to_dict(v: Violation) -> dict:
         "rule_id": v.rule_id,
         "threat_class": v.threat_class,
         "severity": v.severity,
-        "blocked": v.blocked,
         "description": v.description,
         "evidence": v.evidence,
         "chain_span_ids": v.chain_span_ids,

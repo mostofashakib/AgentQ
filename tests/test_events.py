@@ -18,7 +18,7 @@ def test_violation_alert_event_type_literal():
     v = ViolationRecord(
         trace_id="t1", span_id="s1", rule_id="r1",
         threat_class="behavioral", severity="high",
-        blocked=False, description="test",
+        description="test",
     )
     event = ViolationAlertEvent(violation=v)
     assert event.type == "violation"
