@@ -1,9 +1,8 @@
+# agentq/ingest/writer.py
 import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.models import Span, SpanRecord
-
-# module-level queue for downstream workers
-span_queue: asyncio.Queue[SpanRecord] = asyncio.Queue()
+from agentq.events import span_queue, behavior_span_queue
 
 
 async def write_spans(session: AsyncSession, records: list[SpanRecord]) -> list[Span]:
@@ -32,4 +31,5 @@ async def write_spans(session: AsyncSession, records: list[SpanRecord]) -> list[
     await session.commit()
     for r in records:
         await span_queue.put(r)
+        await behavior_span_queue.put(r)
     return spans

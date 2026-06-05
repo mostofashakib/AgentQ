@@ -1,12 +1,12 @@
+# agentq/api/worker.py
 from __future__ import annotations
 import asyncio
 from agentq.db.engine import async_session
 from agentq.db.models import Violation
 from agentq.guardrails.registry import build_engine
 from agentq.guardrails.models import ViolationRecord
-from agentq.ingest.writer import span_queue
+from agentq.events import span_queue, alert_event_queue, ViolationAlertEvent
 from agentq.api.routes.stream import broadcast
-from agentq.api.alerts.dispatcher import dispatch_violation
 
 _verifier = build_engine()
 
@@ -52,4 +52,4 @@ async def guardrail_worker() -> None:
                 "severity": v.severity,
                 "trace_id": v.trace_id,
             })
-            await dispatch_violation(v)
+            await alert_event_queue.put(ViolationAlertEvent(violation=v))
