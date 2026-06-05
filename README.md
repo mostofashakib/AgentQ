@@ -2,7 +2,7 @@
 
 AI Agent Reliability, Evaluation & Observability Control Plane.
 
-AgentQ is a lightweight backend + dashboard that sits between your AI agents and production. It ingests OpenTelemetry spans, runs 21 guardrail rules in real time, scores every trace automatically, and surfaces everything in a live dashboard.
+AgentQ is a lightweight backend + dashboard that sits between your AI agents and production. It ingests OpenTelemetry spans, runs 21 guardrail rules in real time, scores every trace automatically, clusters similar agent behaviors, and surfaces everything in a live dashboard with configurable multi-channel alerts.
 
 ---
 
@@ -21,23 +21,24 @@ AgentQ is a lightweight backend + dashboard that sits between your AI agents and
                │                                      │
                ▼                                      ▼
 ┌─────────────────────────────┐            ┌──────────────────────────────────────┐
-│    3. DYNAMIC EVAL ENGINE   │            │     4. ALERTS & WEBHOOKS             │
+│    3. DYNAMIC EVAL ENGINE   │            │  4. BEHAVIORS & ALERTS               │
 │                             │            │                                      │
-│ • Tiered Reward Engine      │            │ • HTTP POST on every violation       │
-│ • N-Gram Semantic Evaluator │            │ • Configurable external endpoint     │
-│   (ROUGE-1 F1)              │            │ • Payload: rule_id, severity,        │
-│ • Asynchronous LLM-as-Judge │            │   blocked, evidence, trace_id        │
-│   (Anthropic/OpenAI/Ollama/ │            └──────────────────────────────────────┘
-│    OpenRouter)              │
-└──────────────┬──────────────┘
+│ • Tiered Reward Engine      │            │ • Composite embedding (structural +  │
+│ • N-Gram Semantic Evaluator │            │   semantic, all-MiniLM-L6-v2)        │
+│   (ROUGE-1 F1)              │            │ • Nearest-neighbour trace clustering │
+│ • Asynchronous LLM-as-Judge │            │ • LLM rubric generation (auto @10)   │
+│   (Anthropic/OpenAI/Ollama/ │            │ • Rule-based alert dispatch          │
+│    OpenRouter)              │            │   (webhook / Slack / SMTP email)     │
+└──────────────┬──────────────┘            └──────────────────────────────────────┘
                │
                ▼
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │                          5. USER ANALYTICS UI                                    │
 │                                                                                  │
-│ • Live Traces feed (SSE)   • DAG Trace Graph (SVG, bezier edges, click-select)  │
-│ • Span Inspector           • Episode Replay Timeline (scrubber, Play/Pause)     │
-│ • Violation Dashboard      • Eval Score Board (gauges + judge rationale)        │
+│ • Live Traces feed (SSE)   • Waterfall Timeline (depth-indented span tree)      │
+│ • Span Inspector           • Service Graph (SVG force-directed, live physics)   │
+│ • Violation Dashboard      • Behaviors (cluster list, rubric chips, traces)     │
+│ • Eval Score Board         • Alerts (rule CRUD, history, multi-channel config)  │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -88,12 +89,29 @@ AgentQ is a lightweight backend + dashboard that sits between your AI agents and
 | `efficiency` | `optimal_steps / actual_steps`, capped at 1.0 |
 | `judge_score` | LLM-as-judge (0–1) with rationale; providers: Anthropic, OpenAI, Ollama, OpenRouter |
 
-### Alerts & Webhooks
+### Tracing
 | Feature | Detail |
 |---|---|
-| Violation Webhook | HTTP POST fired on every detected violation — configurable endpoint via `WEBHOOK_URL` |
-| Payload | Includes `rule_id`, `threat_class`, `severity`, `blocked`, `description`, `trace_id`, `span_id`, `evidence` |
-| Enable | Set `WEBHOOK_ENABLED=true` and `WEBHOOK_URL=<your-endpoint>` in `.env` |
+| Waterfall Timeline | `GET /api/traces/{id}/waterfall` — depth-indented span tree, fully rendered in the dashboard |
+| Service Graph | `GET /api/graph` — aggregated service nodes + call edges; SVG force-directed layout, no D3 |
+
+### Behaviors
+| Feature | Detail |
+|---|---|
+| Composite Embedding | 0.4 × structural (op:tool sequence) + 0.6 × semantic (prompt+completion), L2-normalized, dim=384 |
+| Nearest-Neighbour Clustering | Cosine similarity vs all cluster centroids; configurable threshold (`BEHAVIOR_SIMILARITY_THRESHOLD`, default 0.82) |
+| LLM Rubric Generation | Auto-triggered at 10 traces per cluster; generates 3–5 classification criteria and a short name via Anthropic |
+| Dashboard | Accordion cluster list with rubric chips, trace count, "Generate Rubric" button, member trace drill-down |
+
+### Alerts
+| Feature | Detail |
+|---|---|
+| Rule-Based Matching | Conditions on `severity`, `threat_class`, `rule_id` (violations) or `cluster_id` (behaviors); empty = wildcard |
+| Rate Limiting | Per-rule frequency limit (max fires/hour) + cooldown window (min minutes between fires) |
+| Webhook Channel | HTTP POST with violation or behavior payload to any URL |
+| Slack Channel | Block Kit message via Slack incoming webhook; severity emoji badges |
+| Email Channel | Async SMTP via `aiosmtplib`; plain-text + HTML; configured via `SMTP_*` env vars |
+| Dashboard | Two-tab UI: Rules CRUD (inline form, enable/disable toggle) + History table |
 
 ### User Analytics UI
 | View | Detail |
@@ -102,8 +120,12 @@ AgentQ is a lightweight backend + dashboard that sits between your AI agents and
 | DAG Trace Graph | SVG tree layout with cubic bezier edges, node colors, violation badges |
 | Span Inspector | OTel attribute table + per-span violation detail with BLOCKED indicator |
 | Episode Replay Timeline | Horizontal scrubber — spans highlight as playhead advances; Play/Pause/Reset |
+| Waterfall Timeline | Depth-indented span tree derived from `parent_span_id` chain |
+| Service Graph | SVG force-directed graph; node size = span count, edge thickness = call count |
 | Violation Dashboard | Stat cards (total / critical / blocked / injections), threat + severity filters |
 | Eval Score Board | ROUGE/accuracy/efficiency gauges, expandable judge rationale |
+| Behaviors | Cluster list with rubric chips, trace count, member traces |
+| Alerts | Rule CRUD with inline form + alert history table |
 
 ---
 
@@ -174,8 +196,23 @@ OPENAI_API_KEY=
 OLLAMA_BASE_URL=http://localhost:11434
 OPENROUTER_API_KEY=
 
+# Legacy webhook (always fires on violations)
 WEBHOOK_ENABLED=false
 WEBHOOK_URL=
+
+# Behavior clustering
+BEHAVIOR_SIMILARITY_THRESHOLD=0.82   # cosine similarity threshold (0–1)
+
+# Slack alerts
+SLACK_WEBHOOK_URL=
+
+# Email alerts (aiosmtplib)
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM=
+SMTP_TO=
 ```
 
 ---
@@ -188,9 +225,20 @@ WEBHOOK_URL=
 | `POST` | `/api/intercept` | Pre-execution tool check (allow/deny) |
 | `GET` | `/api/traces` | List spans (limit, offset, service filter) |
 | `GET` | `/api/traces/{trace_id}` | All spans for a specific trace |
+| `GET` | `/api/traces/{trace_id}/waterfall` | Span tree for waterfall visualization |
+| `GET` | `/api/graph` | Service graph (nodes + edges) |
 | `GET` | `/api/violations` | List violations (threat_class, severity, trace_id filters) |
 | `GET` | `/api/evals` | List eval results |
 | `GET` | `/api/evals/{trace_id}` | Eval result for a specific trace |
+| `GET` | `/api/behaviors` | List behavior clusters |
+| `GET` | `/api/behaviors/{id}` | Cluster detail + member trace IDs |
+| `POST` | `/api/behaviors/{id}/rubric` | Trigger LLM rubric generation |
+| `GET` | `/api/behaviors/{id}/traces` | Paginated assigned traces |
+| `GET` | `/api/alerts/rules` | List alert rules |
+| `POST` | `/api/alerts/rules` | Create alert rule |
+| `PUT` | `/api/alerts/rules/{id}` | Update alert rule |
+| `DELETE` | `/api/alerts/rules/{id}` | Delete alert rule |
+| `GET` | `/api/alerts/history` | Paginated alert history |
 | `GET` | `/api/stream` | SSE stream — real-time span and violation events |
 | `GET` | `/health` | Health check |
 
@@ -198,7 +246,7 @@ WEBHOOK_URL=
 
 ## Tech Stack
 
-**Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0 async, aiosqlite / asyncpg, Pydantic v2, ROUGE-score, httpx, sse-starlette, uv
+**Backend:** Python 3.12, FastAPI, SQLAlchemy 2.0 async, aiosqlite / asyncpg, Pydantic v2, sentence-transformers (all-MiniLM-L6-v2), aiosmtplib, ROUGE-score, httpx, sse-starlette, uv
 
 **Frontend:** Next.js 16 App Router, Tailwind CSS v4, Framer Motion, Lucide icons
 
