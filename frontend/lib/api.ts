@@ -87,6 +87,21 @@ export interface ServiceGraph {
   edges: GraphEdge[]
 }
 
+export interface BehaviorCluster {
+  id: string
+  name: string
+  description: string | null
+  rubric: string[]
+  trace_count: number
+  created_at: string | null
+}
+
+export interface BehaviorTrace {
+  trace_id: string
+  similarity_score: number
+  assigned_at: string
+}
+
 export const api = {
   traces: {
     list: (params?: { limit?: number; service?: string }) =>
@@ -113,6 +128,20 @@ export const api = {
   graph: {
     get: () =>
       fetch(`${API}/api/graph`).then(r => r.json() as Promise<ServiceGraph>),
+  },
+  behaviors: {
+    list: () =>
+      fetch(`${API}/api/behaviors`).then(r => r.json() as Promise<BehaviorCluster[]>),
+    get: (id: string) =>
+      fetch(`${API}/api/behaviors/${id}`).then(r => r.json()),
+    generateRubric: (id: string) =>
+      fetch(`${API}/api/behaviors/${id}/rubric`, { method: 'POST' }).then(r => r.json()),
+    traces: (id: string, params?: { limit?: number }) => {
+      const q = new URLSearchParams()
+      if (params?.limit) q.set('limit', String(params.limit))
+      return fetch(`${API}/api/behaviors/${id}/traces?${q}`)
+        .then(r => r.json() as Promise<BehaviorTrace[]>)
+    },
   },
   streamUrl: () => `${API}/api/stream`,
 }
