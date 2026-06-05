@@ -1,12 +1,13 @@
+# agentq/api/worker.py
 from __future__ import annotations
 import asyncio
+import logging
 from agentq.db.engine import async_session
 from agentq.db.models import Violation
 from agentq.guardrails.registry import build_engine
 from agentq.guardrails.models import ViolationRecord
-from agentq.ingest.writer import span_queue
+from agentq.events import span_queue, alert_event_queue, ViolationAlertEvent
 from agentq.api.routes.stream import broadcast
-from agentq.api.alerts.dispatcher import dispatch_violation
 
 _verifier = build_engine()
 
@@ -34,22 +35,27 @@ async def _save_violations(violations: list[ViolationRecord]) -> None:
 async def guardrail_worker() -> None:
     while True:
         span = await span_queue.get()
-        violations = await _verifier.run_all(span)
-        await _save_violations(violations)
-        broadcast("span", {
-            "trace_id": span.trace_id,
-            "span_id": span.span_id,
-            "name": span.name,
-            "span_kind": span.span_kind,
-            "service_name": span.service_name,
-            "duration_ms": span.duration_ms,
-            "violation_count": len(violations),
-        })
-        for v in violations:
-            broadcast("violation", {
-                "rule_id": v.rule_id,
-                "threat_class": v.threat_class,
-                "severity": v.severity,
-                "trace_id": v.trace_id,
+        try:
+            violations = await _verifier.run_all(span)
+            await _save_violations(violations)
+            broadcast("span", {
+                "trace_id": span.trace_id,
+                "span_id": span.span_id,
+                "name": span.name,
+                "span_kind": span.span_kind,
+                "service_name": span.service_name,
+                "duration_ms": span.duration_ms,
+                "violation_count": len(violations),
             })
-            await dispatch_violation(v)
+            for v in violations:
+                broadcast("violation", {
+                    "rule_id": v.rule_id,
+                    "threat_class": v.threat_class,
+                    "severity": v.severity,
+                    "trace_id": v.trace_id,
+                })
+                await alert_event_queue.put(ViolationAlertEvent(violation=v))
+        except Exception:
+            logging.getLogger(__name__).exception("guardrail_worker error processing span %s", span.span_id)
+        finally:
+            span_queue.task_done()

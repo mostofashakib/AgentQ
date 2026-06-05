@@ -210,6 +210,27 @@ function formatNs(ns: number): string {
   return ms < 1000 ? `${ms.toFixed(0)}ms` : `${(ms / 1000).toFixed(2)}s`
 }
 
+function computeDepth(spans: Span[]): Map<string, number> {
+  const spanIds = new Set(spans.map(s => s.span_id))
+  const depthCache = new Map<string, number>()
+
+  function getDepth(spanId: string): number {
+    if (depthCache.has(spanId)) return depthCache.get(spanId)!
+    const span = spans.find(s => s.span_id === spanId)
+    const parentId = span?.parent_span_id
+    if (!parentId || !spanIds.has(parentId)) {
+      depthCache.set(spanId, 0)
+      return 0
+    }
+    const d = getDepth(parentId) + 1
+    depthCache.set(spanId, d)
+    return d
+  }
+
+  for (const s of spans) getDepth(s.span_id)
+  return depthCache
+}
+
 function EpisodeTimeline({ spans }: { spans: Span[] }) {
   const [playhead, setPlayhead] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -220,6 +241,7 @@ function EpisodeTimeline({ spans }: { spans: Span[] }) {
   const PLAY_DURATION_MS = 5000
 
   const sorted = [...spans].sort((a, b) => Number(a.start_time_unix_nano) - Number(b.start_time_unix_nano))
+  const depthMap = computeDepth(sorted)
   const traceStartNs = sorted.length ? Number(sorted[0].start_time_unix_nano) : 0
   const traceEndNs = sorted.length ? Math.max(...sorted.map(s => Number(s.end_time_unix_nano))) : 1
   const totalNs = Math.max(traceEndNs - traceStartNs, 1)
@@ -336,7 +358,7 @@ function EpisodeTimeline({ spans }: { spans: Span[] }) {
               opacity: reached ? 1 : 0.3, transition: 'opacity 0.15s',
             }}>
               <div style={{
-                width: LABEL_W, flexShrink: 0, paddingLeft: 8, paddingRight: 6,
+                width: LABEL_W, flexShrink: 0, paddingLeft: 8 + (depthMap.get(span.span_id) ?? 0) * 10, paddingRight: 6,
                 fontSize: 10, fontFamily: 'monospace', color: 'var(--color-muted)',
                 overflow: 'hidden', whiteSpace: 'nowrap', textAlign: 'right',
               }}>

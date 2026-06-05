@@ -47,6 +47,81 @@ export interface EvalResult {
   created_at: string
 }
 
+export interface WaterfallNode {
+  id: string
+  trace_id: string
+  span_id: string
+  parent_span_id: string | null
+  name: string
+  span_kind: string
+  service_name: string
+  duration_ms: number
+  start_time_unix_nano: number
+  end_time_unix_nano: number
+  status_code: string
+  gen_ai_system: string | null
+  gen_ai_operation: string | null
+  gen_ai_tool_name: string | null
+  depth: number
+  children: WaterfallNode[]
+  attributes: Record<string, unknown>
+  created_at: string | null
+}
+
+export interface GraphNode {
+  id: string
+  service_name: string
+  operation: string
+  span_count: number
+  avg_duration_ms: number
+}
+
+export interface GraphEdge {
+  source: string
+  target: string
+  call_count: number
+}
+
+export interface ServiceGraph {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+}
+
+export interface BehaviorCluster {
+  id: string
+  name: string
+  description: string | null
+  rubric: string[]
+  trace_count: number
+  created_at: string | null
+}
+
+export interface BehaviorTrace {
+  trace_id: string
+  similarity_score: number
+  assigned_at: string
+}
+
+export interface AlertRule {
+  id: string
+  name: string
+  conditions: Record<string, string>
+  channels: Array<{ type: string; url?: string; [key: string]: unknown }>
+  frequency_limit: number
+  cooldown_minutes: number
+  enabled: boolean
+  created_at: string
+}
+
+export interface AlertHistory {
+  id: string
+  rule_id: string
+  trace_id: string
+  span_id: string | null
+  channel: string
+  fired_at: string
+}
+
 export const api = {
   traces: {
     list: (params?: { limit?: number; service?: string }) =>
@@ -65,6 +140,52 @@ export const api = {
   },
   evals: {
     list: () => fetch(`${API}/api/evals`).then(r => r.json() as Promise<EvalResult[]>),
+  },
+  waterfall: {
+    get: (traceId: string) =>
+      fetch(`${API}/api/traces/${traceId}/waterfall`).then(r => r.json() as Promise<WaterfallNode[]>),
+  },
+  graph: {
+    get: () =>
+      fetch(`${API}/api/graph`).then(r => r.json() as Promise<ServiceGraph>),
+  },
+  behaviors: {
+    list: () =>
+      fetch(`${API}/api/behaviors`).then(r => r.json() as Promise<BehaviorCluster[]>),
+    get: (id: string) =>
+      fetch(`${API}/api/behaviors/${id}`).then(r => r.json()),
+    generateRubric: (id: string) =>
+      fetch(`${API}/api/behaviors/${id}/rubric`, { method: 'POST' }).then(r => r.json()),
+    traces: (id: string, params?: { limit?: number }) => {
+      const q = new URLSearchParams()
+      if (params?.limit) q.set('limit', String(params.limit))
+      return fetch(`${API}/api/behaviors/${id}/traces?${q}`)
+        .then(r => r.json() as Promise<BehaviorTrace[]>)
+    },
+  },
+  alerts: {
+    rules: {
+      list: (): Promise<AlertRule[]> =>
+        fetch(`${API}/api/alerts/rules`).then(r => r.json()),
+      create: (body: Omit<AlertRule, 'id' | 'created_at'>): Promise<AlertRule> =>
+        fetch(`${API}/api/alerts/rules`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }).then(r => r.json()),
+      update: (id: string, body: Omit<AlertRule, 'id' | 'created_at'>): Promise<AlertRule> =>
+        fetch(`${API}/api/alerts/rules/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }).then(r => r.json()),
+      delete: (id: string): Promise<{ deleted: string }> =>
+        fetch(`${API}/api/alerts/rules/${id}`, { method: 'DELETE' }).then(r => r.json()),
+    },
+    history: {
+      list: (limit = 100): Promise<AlertHistory[]> =>
+        fetch(`${API}/api/alerts/history?limit=${limit}`).then(r => r.json()),
+    },
   },
   streamUrl: () => `${API}/api/stream`,
 }
