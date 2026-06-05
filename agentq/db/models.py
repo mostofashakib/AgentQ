@@ -5,7 +5,7 @@ import uuid
 
 from sqlalchemy import BigInteger, Boolean, Float, Integer, JSON, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Base(DeclarativeBase):
@@ -65,6 +65,52 @@ class EvalResult(Base):
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
 
+class BehaviorCluster(Base):
+    __tablename__ = "behavior_clusters"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String, default="")
+    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    rubric: Mapped[list] = mapped_column(JSON, default=list)
+    centroid: Mapped[list] = mapped_column(JSON, default=list)
+    trace_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
+class BehaviorAssignment(Base):
+    __tablename__ = "behavior_assignments"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    trace_id: Mapped[str] = mapped_column(String, index=True)
+    cluster_id: Mapped[str] = mapped_column(String, index=True)
+    similarity_score: Mapped[float] = mapped_column(Float)
+    assigned_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
+class AlertRule(Base):
+    __tablename__ = "alert_rules"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String)
+    conditions: Mapped[dict] = mapped_column(JSON, default=dict)
+    channels: Mapped[list] = mapped_column(JSON, default=list)
+    frequency_limit: Mapped[int] = mapped_column(Integer, default=0)
+    cooldown_minutes: Mapped[int] = mapped_column(Integer, default=0)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
+class AlertHistory(Base):
+    __tablename__ = "alert_history"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    rule_id: Mapped[str] = mapped_column(String, index=True)
+    trace_id: Mapped[str] = mapped_column(String)
+    span_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    channel: Mapped[str] = mapped_column(String)
+    fired_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
 # Pydantic models for ingest / inter-module data transfer
 
 class SpanRecord(BaseModel):
@@ -85,3 +131,21 @@ class SpanRecord(BaseModel):
     gen_ai_tool_name: Optional[str] = None
     gen_ai_finish_reasons: list[str] = []
     attributes: dict = {}
+
+
+class ClusterRecord(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    rubric: list[str] = []
+    centroid: list[float] = []
+    trace_count: int = 0
+    created_at: Optional[datetime] = None
+
+
+class AssignmentRecord(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    trace_id: str
+    cluster_id: str
+    similarity_score: float
+    assigned_at: datetime = Field(default_factory=datetime.utcnow)
