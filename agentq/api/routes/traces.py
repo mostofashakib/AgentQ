@@ -22,6 +22,47 @@ async def list_traces(
     return [_span_to_dict(s) for s in spans]
 
 
+@router.get("/{trace_id}/waterfall")
+async def get_trace_waterfall(trace_id: str, session: AsyncSession = Depends(get_session)):
+    result = await session.execute(
+        select(Span)
+        .where(Span.trace_id == trace_id)
+        .order_by(Span.start_time_unix_nano)
+    )
+    spans = result.scalars().all()
+    return _build_waterfall(spans)
+
+
+def _build_waterfall(spans) -> list[dict]:
+    if not spans:
+        return []
+    span_ids = {s.span_id for s in spans}
+    nodes: dict[str, dict] = {}
+    for s in spans:
+        d = _span_to_dict(s)
+        d["children"] = []
+        d["depth"] = 0
+        nodes[s.span_id] = d
+
+    roots = []
+    for s in spans:
+        node = nodes[s.span_id]
+        if s.parent_span_id and s.parent_span_id in span_ids:
+            nodes[s.parent_span_id]["children"].append(node)
+        else:
+            roots.append(node)
+
+    def _set_depth(node: dict, depth: int) -> None:
+        node["depth"] = depth
+        for child in node["children"]:
+            _set_depth(child, depth + 1)
+
+    for root in roots:
+        _set_depth(root, 0)
+
+    return roots
+
+
 @router.get("/{trace_id}")
 async def get_trace(trace_id: str, session: AsyncSession = Depends(get_session)):
     result = await session.execute(select(Span).where(Span.trace_id == trace_id))
