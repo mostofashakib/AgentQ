@@ -29,3 +29,14 @@ def test_behavior_alert_event_type_literal():
     event = BehaviorAlertEvent(cluster_id="c1", trace_id="t1", similarity_score=0.91)
     assert event.type == "behavior"
     assert event.similarity_score == 0.91
+
+
+def test_new_config_fields_have_defaults():
+    from agentq.config import Settings
+    s = Settings()
+    assert s.smtp_host == ""
+    assert s.smtp_port == 587
+    assert s.smtp_from == ""
+    assert s.smtp_to == ""
+    assert s.slack_webhook_url == ""
+    assert s.behavior_similarity_threshold == pytest.approx(0.82)
