@@ -24,4 +24,4 @@ AlertEvent = ViolationAlertEvent | BehaviorAlertEvent
 span_queue: asyncio.Queue[SpanRecord] = asyncio.Queue()
 behavior_span_queue: asyncio.Queue[SpanRecord] = asyncio.Queue()
 trace_complete_queue: asyncio.Queue[list[SpanRecord]] = asyncio.Queue()
-alert_event_queue: asyncio.Queue = asyncio.Queue()
+alert_event_queue: asyncio.Queue[AlertEvent] = asyncio.Queue()
