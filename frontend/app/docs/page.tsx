@@ -23,7 +23,6 @@ const NAV_GROUPS = [
     items: [
       { id: 'traces',     label: 'Traces & Spans' },
       { id: 'guardrails', label: 'Guardrail Rules' },
-      { id: 'evals',      label: 'Eval Scoring' },
       { id: 'alerts',     label: 'Alerts & Webhooks' },
     ],
   },
@@ -232,7 +231,7 @@ function MethodBadge({ m }: { m: string }) {
 const CARDS = [
   { icon: Zap,       color: '#00D4FF', title: 'OTLP Ingest',    desc: 'Drop-in OTel receiver. Zero SDK changes required.' },
   { icon: Shield,    color: '#EF4444', title: '21 Guardrails',  desc: 'Injection, scope, exfiltration, behavioral & integrity.' },
-  { icon: BarChart3, color: '#22C55E', title: 'Eval Engine',    desc: 'ROUGE-1 F1, tool accuracy, efficiency, LLM-as-judge.' },
+  { icon: BarChart3, color: '#22C55E', title: 'Behaviors',      desc: 'Composite embedding clustering with LLM rubric generation.' },
   { icon: Monitor,   color: '#F59E0B', title: 'Live Dashboard', desc: 'SSE-driven trace feed, DAG viewer, replay timeline.' },
 ]
 
@@ -531,29 +530,6 @@ gen_ai.tool.call.arguments     # tool call arguments dict`}</CodeBlock>
             ))}
           </DataTable>
 
-          {/* ── Evals ────────────────────────────────────────────────── */}
-          <SectionHeading id="evals" title="Eval Scoring" />
-
-          <Prose>
-            <p>Every completed trace is automatically scored on three deterministic metrics plus an optional LLM judge:</p>
-          </Prose>
-
-          <DataTable headers={['Metric', 'Range', 'How it works']}>
-            <TR><TD mono color={ACCENT}>task_completion</TD><TD color={TEXT}>0–1</TD><TD>ROUGE-1 F1 between actual output and expected_output</TD></TR>
-            <TR><TD mono color={ACCENT}>tool_accuracy</TD><TD color={TEXT}>0–1</TD><TD>Ratio of successful tool calls to total tool calls</TD></TR>
-            <TR><TD mono color={ACCENT}>efficiency</TD><TD color={TEXT}>0–1</TD><TD>optimal_steps / actual_steps, capped at 1.0</TD></TR>
-            <TR last><TD mono color={ACCENT}>judge_score</TD><TD color={TEXT}>0–1</TD><TD>LLM-as-judge — requires JUDGE_PROVIDER and a goal on the root span</TD></TR>
-          </DataTable>
-
-          <Prose><p><strong style={{ color: TEXT }}>Configuring the LLM judge:</strong></p></Prose>
-          <CodeBlock lang="env">{`JUDGE_PROVIDER=anthropic          # anthropic | openai | ollama | openrouter
-JUDGE_MODEL=claude-sonnet-4-6
-ANTHROPIC_API_KEY=sk-ant-...`}</CodeBlock>
-
-          <Callout kind="note">
-            To trigger judge scoring, attach <InlineCode>agentq.goal</InlineCode> to the root span. The judge receives the goal, full transcript, and final output, then returns a 0–1 score with a one-sentence rationale.
-          </Callout>
-
           {/* ── Alerts ───────────────────────────────────────────────── */}
           <SectionHeading id="alerts" title="Alerts & Webhooks" />
 
@@ -570,7 +546,6 @@ WEBHOOK_URL=https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK`}</CodeBlock>
   "rule_id": "injection.user_content",
   "threat_class": "injection",
   "severity": "high",
-  "blocked": true,
   "description": "User message contains prompt injection pattern",
   "trace_id": "abc123...",
   "span_id": "span001...",
@@ -595,8 +570,6 @@ WEBHOOK_URL=https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK`}</CodeBlock>
               ['GET',  '/api/traces',            'List spans (limit, offset, service filter)'],
               ['GET',  '/api/traces/{trace_id}', 'All spans for a specific trace'],
               ['GET',  '/api/violations',        'List violations (threat_class, severity, trace_id)'],
-              ['GET',  '/api/evals',             'List eval results'],
-              ['GET',  '/api/evals/{trace_id}',  'Eval result for a specific trace'],
               ['GET',  '/api/stream',            'SSE stream — real-time span and violation events'],
               ['GET',  '/health',                'Health check'],
             ] as const).map(([method, path, desc], i, arr) => (
@@ -615,17 +588,30 @@ WEBHOOK_URL=https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK`}</CodeBlock>
 DATABASE_URL=sqlite+aiosqlite:///./agentq.db
 # DATABASE_URL=postgresql+asyncpg://user:pass@host:5432/agentq
 
-# LLM Judge
-JUDGE_PROVIDER=anthropic          # anthropic | openai | ollama | openrouter
+# Demo mode — seeds realistic sample data on startup
+DEMO_MODE=false
+
+# LLM rubric generation (Behaviors)
 JUDGE_MODEL=claude-sonnet-4-6
 ANTHROPIC_API_KEY=
-OPENAI_API_KEY=
-OLLAMA_BASE_URL=http://localhost:11434
-OPENROUTER_API_KEY=
 
-# Webhooks
+# Behavior clustering
+BEHAVIOR_SIMILARITY_THRESHOLD=0.82   # cosine similarity (0–1)
+
+# Legacy webhook (fires on all violations)
 WEBHOOK_ENABLED=false
-WEBHOOK_URL=`}</CodeBlock>
+WEBHOOK_URL=
+
+# Slack alerts
+SLACK_WEBHOOK_URL=
+
+# Email alerts (aiosmtplib)
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM=
+SMTP_TO=`}</CodeBlock>
 
           {/* Footer */}
           <div style={{ marginTop: 80, paddingTop: 32, borderTop: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
