@@ -9,6 +9,7 @@ from agentq.api.routes import behaviors as behaviors_route
 from agentq.api.routes import alerts as alerts_route
 from agentq.api.routes import agents as agents_route
 from agentq.api.routes import settings as settings_route
+from agentq.api.routes import report as report_route
 from agentq.ingest.receiver import router as ingest_router
 from agentq.api.worker import guardrail_worker
 from agentq.behaviors.worker import behavior_worker
@@ -62,6 +63,7 @@ app.include_router(behaviors_route.router)
 app.include_router(alerts_route.router)
 app.include_router(agents_route.router)
 app.include_router(settings_route.router)
+app.include_router(report_route.router)
 
 if settings.demo_mode:
     from agentq.api.routes import demo as demo_route
