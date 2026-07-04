@@ -2,6 +2,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { api, type BehaviorCluster, type BehaviorTrace } from '@/lib/api'
+import Link from 'next/link'
 
 export default function BehaviorsPage() {
   const [clusters, setClusters] = useState<BehaviorCluster[]>([])
@@ -37,7 +38,7 @@ export default function BehaviorsPage() {
 
       {clusters.length === 0 ? (
         <div className="rounded border border-border p-12 text-center text-muted text-sm">
-          No behavior clusters yet. Clusters form automatically after traces are ingested.
+          No behaviors yet. <Link href="/connect" className="text-cyan hover:underline">Connect an agent</Link>
         </div>
       ) : (
         <div className="space-y-2">

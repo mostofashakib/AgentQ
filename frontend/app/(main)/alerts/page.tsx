@@ -193,7 +193,6 @@ export default function AlertsPage() {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-lg font-semibold tracking-wide">Alerts</h1>
-        <p className="text-sm text-muted mt-0.5">Configure alert rules and review firing history</p>
       </div>
 
       {/* Tabs */}
@@ -372,7 +371,7 @@ export default function AlertsPage() {
 
           {rules.length === 0 ? (
             <div className="rounded border border-border p-12 text-center text-muted text-sm">
-              No alert rules yet. Create one with &quot;New Rule&quot;.
+              No alert rules
             </div>
           ) : (
             <div className="rounded border border-border overflow-hidden">

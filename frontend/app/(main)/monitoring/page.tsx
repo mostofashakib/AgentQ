@@ -37,9 +37,9 @@ export default function MonitoringPage() {
         <div className="font-mono text-xl text-cyan mt-2">{value}</div>
       </div>)}
     </div>
-    {metrics && <div className="flex gap-6 mb-6 text-xs font-mono text-muted">
-      <span>evaluations: {Object.entries(metrics.evaluation_counts).map(([k, v]) => `${k} ${v}`).join(' · ') || 'none'}</span>
-      <span>events: {Object.entries(metrics.event_counts).map(([k, v]) => `${k} ${v}`).join(' · ') || 'none'}</span>
+    {metrics && (Object.keys(metrics.evaluation_counts).length > 0 || Object.keys(metrics.event_counts).length > 0) && <div className="flex gap-6 mb-6 text-xs font-mono text-muted">
+      {Object.keys(metrics.evaluation_counts).length > 0 && <span>evaluations: {Object.entries(metrics.evaluation_counts).map(([k, v]) => `${k} ${v}`).join(' · ')}</span>}
+      {Object.keys(metrics.event_counts).length > 0 && <span>events: {Object.entries(metrics.event_counts).map(([k, v]) => `${k} ${v}`).join(' · ')}</span>}
     </div>}
     <div className="border border-border rounded overflow-hidden">
       <table className="w-full text-sm"><thead className="bg-surface/50"><tr>
@@ -52,7 +52,9 @@ export default function MonitoringPage() {
         <td className="px-4 py-2.5 font-mono text-xs">{(run.input_tokens + run.output_tokens).toLocaleString()}</td>
         <td className="px-4 py-2.5 font-mono text-xs">${run.estimated_cost_usd.toFixed(4)}</td>
         <td className="px-4 py-2.5 font-mono text-xs">{run.tool_call_count}</td>
-      </tr>)}</tbody></table>
+      </tr>)}{runs.length === 0 && <tr><td colSpan={7} className="px-4 py-12 text-center text-muted text-sm">
+        No runs yet. <Link href="/connect" className="text-cyan hover:underline">Connect an agent</Link>
+      </td></tr>}</tbody></table>
     </div>
   </div>
 }

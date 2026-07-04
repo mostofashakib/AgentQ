@@ -4,7 +4,7 @@ import Link from 'next/link'
 import {
   Activity, ChevronLeft, ChevronRight, Copy, Check, Terminal,
   Info, AlertTriangle, Zap, Shield, BarChart3, Monitor,
-  BookOpen, ArrowUpRight,
+  BookOpen,
 } from 'lucide-react'
 
 // ─── Nav data ─────────────────────────────────────────────────────────────────
@@ -392,7 +392,7 @@ cp .env.example .env
               <p>Point any OTel-compatible agent at your backend&rsquo;s <InlineCode>/v1/traces</InlineCode> endpoint. See <a href="#connecting" style={{ color: ACCENT, textDecoration: 'none' }} className="hover:underline">Connecting an Agent</a>.</p>
             </Step>
             <Step n={4} title="Open the dashboard">
-              <p>Spans appear in the Live Traces feed as soon as your agent runs. Click any trace to open the DAG viewer.</p>
+              <p>Spans appear on the Traces page as soon as your agent runs. Click any trace to open the DAG viewer.</p>
             </Step>
           </Steps>
 
@@ -415,7 +415,7 @@ export OTEL_EXPORTER_OTLP_PROTOCOL=http/json   # or http/protobuf`}</CodeBlock>
           </Callout>
 
           <Prose>
-              <p><strong style={{ color: TEXT }}>Conformance checklist</strong> — first authorize the agent on the Connect Agent page and add its generated token to the exporter headers. Every span needs a matching <InlineCode>service.name</InlineCode>, <InlineCode>trace_id</InlineCode>/<InlineCode>span_id</InlineCode>, and <InlineCode>gen_ai.system</InlineCode> + <InlineCode>gen_ai.operation.name</InlineCode> on CLIENT spans. Metadata-only spans pass ingestion, but content-scanning guardrails have nothing to scan.</p>
+              <p><strong style={{ color: TEXT }}>Conformance checklist</strong> — first authorize the agent on the Agents page and add its generated token to the exporter headers. Every span needs a matching <InlineCode>service.name</InlineCode>, <InlineCode>trace_id</InlineCode>/<InlineCode>span_id</InlineCode>, and <InlineCode>gen_ai.system</InlineCode> + <InlineCode>gen_ai.operation.name</InlineCode> on CLIENT spans. Metadata-only spans pass ingestion, but content-scanning guardrails have nothing to scan.</p>
           </Prose>
 
           <Prose><p><strong style={{ color: TEXT }}>Python — opentelemetry-sdk</strong></p></Prose>
@@ -584,7 +584,7 @@ WEBHOOK_URL=https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK`}</CodeBlock>
 }`}</CodeBlock>
 
           <Callout kind="tip" title="Live stream">
-            The dashboard streams violations via SSE — the red violation counter in Live Traces updates in real time without polling.
+            The dashboard streams violations via SSE — the red violation counter on Traces updates in real time without polling.
           </Callout>
 
           {/* ── API Reference ────────────────────────────────────────── */}
@@ -645,13 +645,8 @@ SMTP_FROM=
 SMTP_TO=`}</CodeBlock>
 
           {/* Footer */}
-          <div style={{ marginTop: 80, paddingTop: 32, borderTop: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ marginTop: 80, paddingTop: 32, borderTop: `1px solid ${BORDER}` }}>
             <span style={{ fontSize: 13, color: MUTED }}>AgentQ v0.1.0</span>
-            <a href="https://www.mostofashakib.com" target="_blank" rel="noopener noreferrer"
-              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: MUTED, textDecoration: 'none', transition: 'color 0.15s' }}
-              className="hover:text-cyan">
-              Developed by Mostofa Shakib <ArrowUpRight size={12} />
-            </a>
           </div>
 
         </div>

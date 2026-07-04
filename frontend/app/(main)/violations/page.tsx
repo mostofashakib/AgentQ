@@ -29,8 +29,7 @@ export default function ViolationsPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-lg font-semibold">Violation Audit Log</h1>
-        <p className="text-sm text-muted mt-0.5">Guardrail violations across all agent traces</p>
+        <h1 className="text-lg font-semibold">Violations</h1>
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -86,7 +85,7 @@ export default function ViolationsPage() {
               </tr>
             ))}
             {violations.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-12 text-center text-muted text-sm">No violations found</td></tr>
+              <tr><td colSpan={6} className="px-4 py-12 text-center text-muted text-sm">No violations</td></tr>
             )}
           </tbody>
         </table>
