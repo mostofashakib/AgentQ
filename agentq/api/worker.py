@@ -2,7 +2,7 @@
 from __future__ import annotations
 import asyncio
 import logging
-from agentq.db.engine import async_session
+import agentq.db.engine as _db_engine
 from agentq.db.models import Violation
 from agentq.guardrails.registry import build_engine
 from agentq.guardrails.models import ViolationRecord
@@ -15,7 +15,7 @@ _verifier = build_engine()
 async def _save_violations(violations: list[ViolationRecord]) -> None:
     if not violations:
         return
-    async with async_session() as session:
+    async with _db_engine.async_session() as session:
         for v in violations:
             session.add(Violation(
                 id=v.id,
