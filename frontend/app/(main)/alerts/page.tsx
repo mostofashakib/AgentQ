@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react'
 import { api, type AlertRule, type AlertHistory } from '@/lib/api'
 
+const THREATS = ['injection', 'scope', 'exfiltration', 'behavioral', 'integrity']
+const SEVERITIES = ['low', 'medium', 'high', 'critical']
+type ConditionType = 'none' | 'severity' | 'threat_class'
+type ChannelType = 'webhook' | 'slack' | 'email'
+
 const EMPTY_FORM: Omit<AlertRule, 'id' | 'created_at'> = {
   name: '',
   conditions: {},
@@ -10,6 +15,32 @@ const EMPTY_FORM: Omit<AlertRule, 'id' | 'created_at'> = {
   frequency_limit: 1,
   cooldown_minutes: 60,
   enabled: true,
+}
+
+function conditionsToForm(conditions: Record<string, string>): { type: ConditionType; value: string } {
+  if (conditions.severity) return { type: 'severity', value: conditions.severity }
+  if (conditions.threat_class) return { type: 'threat_class', value: conditions.threat_class }
+  return { type: 'none', value: '' }
+}
+
+function formToConditions(type: ConditionType, value: string): Record<string, string> {
+  if (type === 'none' || !value) return {}
+  return { [type]: value }
+}
+
+function channelToForm(channels: AlertRule['channels']): { type: ChannelType; url: string; to: string } {
+  const c = channels[0]
+  if (!c) return { type: 'webhook', url: '', to: '' }
+  return {
+    type: (c.type as ChannelType) ?? 'webhook',
+    url: (c.url as string) ?? '',
+    to: (c.to as string) ?? '',
+  }
+}
+
+function formToChannels(type: ChannelType, url: string, to: string): AlertRule['channels'] {
+  if (type === 'email') return to ? [{ type: 'email', to }] : []
+  return url ? [{ type, url }] : []
 }
 
 export default function AlertsPage() {
@@ -20,8 +51,11 @@ export default function AlertsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formName, setFormName] = useState('')
-  const [formConditions, setFormConditions] = useState('{}')
-  const [formChannels, setFormChannels] = useState('[]')
+  const [formConditionType, setFormConditionType] = useState<ConditionType>('none')
+  const [formConditionValue, setFormConditionValue] = useState('')
+  const [formChannelType, setFormChannelType] = useState<ChannelType>('webhook')
+  const [formChannelUrl, setFormChannelUrl] = useState('')
+  const [formChannelTo, setFormChannelTo] = useState('')
   const [formFrequency, setFormFrequency] = useState(1)
   const [formCooldown, setFormCooldown] = useState(60)
   const [formEnabled, setFormEnabled] = useState(true)
@@ -42,8 +76,11 @@ export default function AlertsPage() {
   function openNewForm() {
     setEditingId(null)
     setFormName(EMPTY_FORM.name)
-    setFormConditions(JSON.stringify(EMPTY_FORM.conditions, null, 2))
-    setFormChannels(JSON.stringify(EMPTY_FORM.channels, null, 2))
+    setFormConditionType('none')
+    setFormConditionValue('')
+    setFormChannelType('webhook')
+    setFormChannelUrl('')
+    setFormChannelTo('')
     setFormFrequency(EMPTY_FORM.frequency_limit)
     setFormCooldown(EMPTY_FORM.cooldown_minutes)
     setFormEnabled(EMPTY_FORM.enabled)
@@ -54,8 +91,13 @@ export default function AlertsPage() {
   function openEditForm(rule: AlertRule) {
     setEditingId(rule.id)
     setFormName(rule.name)
-    setFormConditions(JSON.stringify(rule.conditions, null, 2))
-    setFormChannels(JSON.stringify(rule.channels, null, 2))
+    const cond = conditionsToForm(rule.conditions)
+    setFormConditionType(cond.type)
+    setFormConditionValue(cond.value)
+    const chan = channelToForm(rule.channels)
+    setFormChannelType(chan.type)
+    setFormChannelUrl(chan.url)
+    setFormChannelTo(chan.to)
     setFormFrequency(rule.frequency_limit)
     setFormCooldown(rule.cooldown_minutes)
     setFormEnabled(rule.enabled)
@@ -71,27 +113,17 @@ export default function AlertsPage() {
 
   async function saveForm() {
     setFormError(null)
-    let parsedConditions: Record<string, string>
-    let parsedChannels: Array<{ type: string; url?: string; [key: string]: unknown }>
-    try {
-      parsedConditions = JSON.parse(formConditions)
-    } catch {
-      setFormError('Conditions must be valid JSON object')
-      return
-    }
-    try {
-      parsedChannels = JSON.parse(formChannels)
-    } catch {
-      setFormError('Channels must be valid JSON array')
-      return
-    }
     const body: Omit<AlertRule, 'id' | 'created_at'> = {
       name: formName,
-      conditions: parsedConditions,
-      channels: parsedChannels,
+      conditions: formToConditions(formConditionType, formConditionValue),
+      channels: formToChannels(formChannelType, formChannelUrl, formChannelTo),
       frequency_limit: formFrequency,
       cooldown_minutes: formCooldown,
       enabled: formEnabled,
+    }
+    if (body.channels.length === 0) {
+      setFormError('Provide a URL (webhook/Slack) or address (email) for the channel')
+      return
     }
     setSaving(true)
     try {
@@ -191,25 +223,62 @@ export default function AlertsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-muted mb-1">Conditions (JSON object)</label>
-                  <textarea
-                    value={formConditions}
-                    onChange={e => setFormConditions(e.target.value)}
-                    rows={4}
-                    className="w-full rounded border border-border bg-surface text-xs font-mono px-3 py-1.5 text-text focus:outline-none focus:border-cyan/60 resize-y"
-                    placeholder={'{\n  "severity": "critical"\n}'}
-                  />
+                  <label className="block text-xs text-muted mb-1">Condition</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={formConditionType}
+                      onChange={e => { setFormConditionType(e.target.value as ConditionType); setFormConditionValue('') }}
+                      className="rounded border border-border bg-surface text-sm px-2 py-1.5 text-text focus:outline-none focus:border-cyan/60"
+                    >
+                      <option value="none">Any (wildcard)</option>
+                      <option value="severity">Severity</option>
+                      <option value="threat_class">Threat class</option>
+                    </select>
+                    {formConditionType !== 'none' && (
+                      <select
+                        value={formConditionValue}
+                        onChange={e => setFormConditionValue(e.target.value)}
+                        className="flex-1 rounded border border-border bg-surface text-sm px-2 py-1.5 text-text focus:outline-none focus:border-cyan/60"
+                      >
+                        <option value="">Select…</option>
+                        {(formConditionType === 'severity' ? SEVERITIES : THREATS).map(v => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs text-muted mb-1">Channels (JSON array)</label>
-                  <textarea
-                    value={formChannels}
-                    onChange={e => setFormChannels(e.target.value)}
-                    rows={4}
-                    className="w-full rounded border border-border bg-surface text-xs font-mono px-3 py-1.5 text-text focus:outline-none focus:border-cyan/60 resize-y"
-                    placeholder={'[\n  {"type": "webhook", "url": "https://..."}\n]'}
-                  />
+                  <label className="block text-xs text-muted mb-1">Channel</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={formChannelType}
+                      onChange={e => setFormChannelType(e.target.value as ChannelType)}
+                      className="rounded border border-border bg-surface text-sm px-2 py-1.5 text-text focus:outline-none focus:border-cyan/60"
+                    >
+                      <option value="webhook">Webhook</option>
+                      <option value="slack">Slack</option>
+                      <option value="email">Email</option>
+                    </select>
+                    {formChannelType === 'email' ? (
+                      <input
+                        type="email"
+                        value={formChannelTo}
+                        onChange={e => setFormChannelTo(e.target.value)}
+                        placeholder="you@example.com"
+                        className="flex-1 rounded border border-border bg-surface text-sm px-3 py-1.5 text-text focus:outline-none focus:border-cyan/60"
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        value={formChannelUrl}
+                        onChange={e => setFormChannelUrl(e.target.value)}
+                        placeholder="https://..."
+                        className="flex-1 rounded border border-border bg-surface text-sm px-3 py-1.5 text-text focus:outline-none focus:border-cyan/60"
+                      />
+                    )}
+                  </div>
                 </div>
 
                 <div>
