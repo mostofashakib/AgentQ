@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager, AsyncExitStack
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from agentq.api.rate_limit import RateLimitMiddleware
 from agentq.config import settings
 from agentq.db.engine import create_tables, async_session
 from agentq.api.routes import traces, violations, stream, intercept, graph
@@ -48,6 +49,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RateLimitMiddleware)
 
 app.include_router(ingest_router)
 app.include_router(traces.router)

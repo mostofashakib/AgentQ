@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     smtp_to: str = ""
     slack_webhook_url: str = ""
+    rate_limit_per_minute: int = 120
     behavior_similarity_threshold: float = 0.82
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}

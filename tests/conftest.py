@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 import agentq.db.engine as db_engine_module
 from agentq.db.models import Base
 from agentq.guardrails import settings as guardrail_settings
+from agentq.api import rate_limit
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -43,6 +44,7 @@ async def _use_memory_db(monkeypatch):
     # mask the fresh DB's actual (empty) state. Reset it so every test starts
     # with a cold cache against its own fresh DB.
     guardrail_settings.invalidate_cache()
+    rate_limit.reset()
 
     yield
 
