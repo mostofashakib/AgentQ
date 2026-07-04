@@ -83,3 +83,66 @@ async def test_full_engine_detects_injection():
     violations = await engine.run_all(span)
     rule_ids = [v.rule_id for v in violations]
     assert "injection.user_content" in rule_ids
+
+
+async def test_token_explosion_uses_configured_threshold():
+    from agentq.guardrails import settings as guardrail_settings
+    from agentq.api.routes.settings import router as _settings_router  # noqa: F401  (ensures route module import order is irrelevant)
+    import agentq.db.engine as _db_engine
+    from agentq.db.models import AppSettings
+    from sqlalchemy import select
+
+    async with _db_engine.async_session() as session:
+        row = (await session.execute(select(AppSettings).where(AppSettings.id == "singleton"))).scalars().first()
+        if row is None:
+            session.add(AppSettings(id="singleton", token_explosion_threshold=1000))
+        else:
+            row.token_explosion_threshold = 1000
+        await session.commit()
+    guardrail_settings.invalidate_cache()
+
+    span = make_span(gen_ai_input_tokens=600, gen_ai_output_tokens=500)  # total 1100 > 1000
+    results = await behavioral.token_explosion(span)
+    assert len(results) == 1
+    assert "1000" in results[0].description
+
+
+async def test_excessive_tool_calls_uses_configured_threshold():
+    from agentq.guardrails import settings as guardrail_settings
+    import agentq.db.engine as _db_engine
+    from agentq.db.models import AppSettings
+    from sqlalchemy import select
+
+    async with _db_engine.async_session() as session:
+        row = (await session.execute(select(AppSettings).where(AppSettings.id == "singleton"))).scalars().first()
+        if row is None:
+            session.add(AppSettings(id="singleton", excessive_tool_calls_threshold=3))
+        else:
+            row.excessive_tool_calls_threshold = 3
+        await session.commit()
+    guardrail_settings.invalidate_cache()
+
+    span = make_span(attributes={"agentq.trace_tool_call_count": 5})
+    results = await scope.excessive_tool_calls(span)
+    assert len(results) == 1
+    assert "3" in results[0].description
+
+
+async def test_infinite_loop_uses_configured_threshold():
+    from agentq.guardrails import settings as guardrail_settings
+    import agentq.db.engine as _db_engine
+    from agentq.db.models import AppSettings
+    from sqlalchemy import select
+
+    async with _db_engine.async_session() as session:
+        row = (await session.execute(select(AppSettings).where(AppSettings.id == "singleton"))).scalars().first()
+        if row is None:
+            session.add(AppSettings(id="singleton", infinite_loop_repeat_threshold=2))
+        else:
+            row.infinite_loop_repeat_threshold = 2
+        await session.commit()
+    guardrail_settings.invalidate_cache()
+
+    span = make_span(name="tool:delete_file", attributes={"agentq.trace_span_names": ["tool:delete_file", "tool:delete_file"]})
+    results = await behavioral.infinite_loop_detection(span)
+    assert len(results) == 1

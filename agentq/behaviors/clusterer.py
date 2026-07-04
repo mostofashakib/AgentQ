@@ -5,7 +5,7 @@ import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.models import BehaviorCluster, BehaviorAssignment
-from agentq.config import settings
+from agentq.guardrails.settings import get_app_settings
 
 
 def _cosine_sim(a: list[float], b: list[float]) -> float:
@@ -32,7 +32,7 @@ async def assign(
             best_sim = sim
             best_cluster = c
 
-    threshold = settings.behavior_similarity_threshold
+    threshold = (await get_app_settings()).behavior_similarity_threshold
     is_new = best_cluster is None or best_sim < threshold
 
     if is_new:

@@ -1,6 +1,7 @@
 from agentq.db.models import SpanRecord
 from agentq.guardrails.models import ViolationRecord
 from agentq.guardrails.utils.pattern_match import is_high_risk_tool
+from agentq.guardrails.settings import get_app_settings
 
 _DESTRUCTIVE_VERBS = {"delete", "drop", "remove", "destroy", "purge", "wipe", "format", "truncate"}
 
@@ -36,12 +37,13 @@ async def unsanctioned_external_call(span: SpanRecord) -> list[ViolationRecord]:
 
 async def excessive_tool_calls(span: SpanRecord) -> list[ViolationRecord]:
     call_count = span.attributes.get("agentq.trace_tool_call_count", 0)
-    if isinstance(call_count, int) and call_count > 20:
+    threshold = (await get_app_settings()).excessive_tool_calls_threshold
+    if isinstance(call_count, int) and call_count > threshold:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="scope.excessive_tool_calls",
             threat_class="scope", severity="medium",
-            description=f"Trace has {call_count} tool calls, exceeding limit of 20",
+            description=f"Trace has {call_count} tool calls, exceeding limit of {threshold}",
             evidence=str(call_count),
         )]
     return []

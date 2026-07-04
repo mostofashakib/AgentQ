@@ -1,7 +1,6 @@
 from agentq.db.models import SpanRecord
 from agentq.guardrails.models import ViolationRecord
-
-_TOKEN_EXPLOSION_THRESHOLD = 8000
+from agentq.guardrails.settings import get_app_settings
 
 
 async def goal_drift(span: SpanRecord) -> list[ViolationRecord]:
@@ -25,7 +24,8 @@ async def infinite_loop_detection(span: SpanRecord) -> list[ViolationRecord]:
     if not isinstance(seen_names, list) or not span.name:
         return []
     occurrences = seen_names.count(span.name)
-    if occurrences >= 5:
+    threshold = (await get_app_settings()).infinite_loop_repeat_threshold
+    if occurrences >= threshold:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="behavioral.infinite_loop",
@@ -54,12 +54,13 @@ async def hallucinated_tool(span: SpanRecord) -> list[ViolationRecord]:
 
 async def token_explosion(span: SpanRecord) -> list[ViolationRecord]:
     total = (span.gen_ai_input_tokens or 0) + (span.gen_ai_output_tokens or 0)
-    if total > _TOKEN_EXPLOSION_THRESHOLD:
+    threshold = (await get_app_settings()).token_explosion_threshold
+    if total > threshold:
         return [ViolationRecord(
             trace_id=span.trace_id, span_id=span.span_id,
             rule_id="behavioral.token_explosion",
             threat_class="behavioral", severity="medium",
-            description=f"Span used {total} tokens, exceeding threshold of {_TOKEN_EXPLOSION_THRESHOLD}",
+            description=f"Span used {total} tokens, exceeding threshold of {threshold}",
             evidence=f"input={span.gen_ai_input_tokens} output={span.gen_ai_output_tokens}",
         )]
     return []
