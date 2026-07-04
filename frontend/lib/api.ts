@@ -117,6 +117,14 @@ export interface Agent {
   violation_count: number
 }
 
+export interface AppSettings {
+  token_explosion_threshold: number
+  excessive_tool_calls_threshold: number
+  infinite_loop_repeat_threshold: number
+  behavior_similarity_threshold: number
+  default_alert_channel: Record<string, unknown> | null
+}
+
 export const api = {
   traces: {
     list: (params?: { limit?: number; service?: string }) =>
@@ -182,6 +190,16 @@ export const api = {
   agents: {
     list: (): Promise<Agent[]> =>
       fetch(`${API}/api/agents`).then(r => r.json()),
+  },
+  settings: {
+    get: (): Promise<AppSettings> =>
+      fetch(`${API}/api/settings`).then(r => r.json()),
+    update: (body: Partial<AppSettings>): Promise<AppSettings> =>
+      fetch(`${API}/api/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(r => r.json()),
   },
   streamUrl: () => `${API}/api/stream`,
 }

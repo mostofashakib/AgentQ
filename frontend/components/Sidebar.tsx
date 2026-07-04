@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Activity, AlertTriangle, Bell, GitBranch, Layers, Plug, Radio } from 'lucide-react'
+import { Activity, AlertTriangle, Bell, GitBranch, Layers, Plug, Radio, Settings } from 'lucide-react'
 
 const nav = [
   { href: '/connect', label: 'Connect Agent', icon: Plug },
@@ -10,6 +10,7 @@ const nav = [
   { href: '/behaviors', label: 'Behaviors', icon: Layers },
   { href: '/alerts', label: 'Alerts', icon: Bell },
   { href: '/graph', label: 'Service Graph', icon: GitBranch },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 export function Sidebar() {

@@ -48,6 +48,7 @@ function formToChannels(type: ChannelType, url: string, to: string): AlertRule['
 
 export default function AlertsPage() {
   const [tab, setTab] = useState<'rules' | 'history'>('rules')
+  const [defaultChannel, setDefaultChannel] = useState<{ type: ChannelType; url: string; to: string } | null>(null)
 
   // Rules state
   const [rules, setRules] = useState<AlertRule[]>([])
@@ -71,6 +72,15 @@ export default function AlertsPage() {
 
   useEffect(() => {
     api.alerts.rules.list().then(setRules).catch(() => {})
+    api.settings.get().then(s => {
+      if (s.default_alert_channel) {
+        setDefaultChannel({
+          type: (s.default_alert_channel.type as ChannelType) ?? 'webhook',
+          url: (s.default_alert_channel.url as string) ?? '',
+          to: (s.default_alert_channel.to as string) ?? '',
+        })
+      }
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -83,9 +93,15 @@ export default function AlertsPage() {
     setFormConditionType('none')
     setFormConditionValue('')
     setFormRawConditions(null)
-    setFormChannelType('webhook')
-    setFormChannelUrl('')
-    setFormChannelTo('')
+    if (defaultChannel) {
+      setFormChannelType(defaultChannel.type)
+      setFormChannelUrl(defaultChannel.url)
+      setFormChannelTo(defaultChannel.to)
+    } else {
+      setFormChannelType('webhook')
+      setFormChannelUrl('')
+      setFormChannelTo('')
+    }
     setFormFrequency(EMPTY_FORM.frequency_limit)
     setFormCooldown(EMPTY_FORM.cooldown_minutes)
     setFormEnabled(EMPTY_FORM.enabled)
