@@ -1,8 +1,9 @@
 # AgentQ
 
-AI Agent Safety, Observability & Guardrail Platform.
+**AI Agent Observability**
 
-AgentQ sits between your AI agents and production. It ingests OpenTelemetry spans, runs 21 real-time guardrail rules across 5 threat classes, clusters similar agent behaviors with LLM-generated rubrics, and dispatches multi-channel alerts — all surfaced in a live dashboard.
+Autonomous agents take actions in production with no one watching until something breaks. AgentQ sits between your agents and production, ingesting every action as an OpenTelemetry span so you can see — in real time — what they're actually doing.
+It intercepts risky tool calls before they execute, clusters similar agent behaviors into reviewable patterns, and dispatches multi-channel alerts the moment something goes wrong — all surfaced in a live dashboard.
 
 ---
 
