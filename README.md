@@ -131,11 +131,13 @@ Demo endpoints (`POST /api/demo/seed`, `POST /api/demo/reset`) are only mounted 
 
 ## Connecting an Agent
 
+AgentQ speaks **AOP/1** — the AgentQ Observability Protocol: OTLP/HTTP spans (JSON or protobuf), `service.name` as agent identity (no registration step), OTel GenAI semantic conventions as the action schema, automatic MCP normalization, and a pre-execution intercept hook. Conformance checklist: `service.name`, `trace_id`/`span_id`, `gen_ai.system` + `gen_ai.operation.name` on CLIENT spans, and actual prompt/completion/tool I/O content (metadata-only spans pass ingestion but give content-scanning guardrails nothing to inspect).
+
 Set two env vars before running your agent:
 
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:8000
-export OTEL_EXPORTER_OTLP_PROTOCOL=http/json
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/json   # or http/protobuf — both accepted
 ```
 
 Or use [openlit](https://github.com/openlit/openlit) (recommended):
@@ -144,6 +146,39 @@ Or use [openlit](https://github.com/openlit/openlit) (recommended):
 import openlit
 openlit.init(otlp_endpoint="http://localhost:8000/v1/traces")
 ```
+
+**OpenClaw:**
+
+```bash
+openclaw plugins install clawhub:@openclaw/diagnostics-otel
+openclaw plugins enable diagnostics-otel
+```
+
+```json5
+{
+  plugins: { entries: { "diagnostics-otel": { enabled: true } } },
+  diagnostics: {
+    otel: {
+      enabled: true,
+      tracesEndpoint: "http://localhost:8000/v1/traces",
+      protocol: "http/protobuf",
+      serviceName: "openclaw-prod",
+      traces: true,
+      metrics: false,
+      logs: false,
+      captureContent: {
+        enabled: true,
+        inputMessages: true,
+        outputMessages: true,
+        toolInputs: true,
+        toolOutputs: true,
+      },
+    },
+  },
+}
+```
+
+> `captureContent` defaults to all-`false` in OpenClaw for privacy — spans carry no prompt/response/tool text unless you opt in above. Without it, AgentQ's content-scanning guardrails (injection, PII, exfiltration) receive spans but find nothing to scan.
 
 MCP agents — spans with any `mcp.*` attribute are automatically normalized to GenAI conventions.
 
@@ -168,6 +203,7 @@ violations = resp.json()["violations"]
 
 | View | What you can do |
 |---|---|
+| **Connect Agent** | Wizard: pick a framework (OpenClaw, generic OTel, MCP, cURL), name your agent, get a ready-to-paste config snippet, watch connection status flip live |
 | **Live Traces** | SSE-driven real-time feed; violation counter per trace |
 | **Trace Detail** | DAG graph, waterfall timeline, episode replay scrubber, span inspector with OTel attributes |
 | **Violations** | Filter by threat class and severity; stat cards for totals and criticals |
@@ -245,6 +281,7 @@ SMTP_TO=
 | `GET` | `/api/traces/{trace_id}` | All spans for a trace |
 | `GET` | `/api/traces/{trace_id}/waterfall` | Depth-indented span tree |
 | `GET` | `/api/graph` | Service graph (nodes + call edges) |
+| `GET` | `/api/agents` | List connected agents (span/violation counts, first/last seen) |
 | `GET` | `/api/violations` | List violations (threat_class, severity, trace_id filters) |
 | `GET` | `/api/behaviors` | List behavior clusters |
 | `GET` | `/api/behaviors/{id}` | Cluster detail + member trace IDs |
