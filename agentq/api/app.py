@@ -7,6 +7,7 @@ from agentq.db.engine import create_tables, async_session
 from agentq.api.routes import traces, violations, stream, intercept, graph
 from agentq.api.routes import behaviors as behaviors_route
 from agentq.api.routes import alerts as alerts_route
+from agentq.api.routes import agents as agents_route
 from agentq.ingest.receiver import router as ingest_router
 from agentq.api.worker import guardrail_worker
 from agentq.behaviors.worker import behavior_worker
@@ -58,6 +59,7 @@ app.include_router(intercept.router)
 app.include_router(graph.router)
 app.include_router(behaviors_route.router)
 app.include_router(alerts_route.router)
+app.include_router(agents_route.router)
 
 if settings.demo_mode:
     from agentq.api.routes import demo as demo_route

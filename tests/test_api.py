@@ -109,3 +109,27 @@ async def test_traces_after_ingest(client):
     assert r.status_code == 200
     trace_ids = [s["trace_id"] for s in r.json()]
     assert "t999" in trace_ids
+
+
+async def test_list_agents_empty(client):
+    r = await client.get("/api/agents")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+async def test_list_agents_after_ingest(client):
+    payload = {
+        "resourceSpans": [{
+            "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "agent-x"}}]},
+            "scopeSpans": [{"spans": [{
+                "traceId": "tx1", "spanId": "sx1", "name": "op",
+                "kind": 2, "startTimeUnixNano": "0", "endTimeUnixNano": "1000000",
+                "attributes": [], "status": {},
+            }]}]
+        }]
+    }
+    await client.post("/v1/traces", json=payload)
+    r = await client.get("/api/agents")
+    assert r.status_code == 200
+    names = [a["service_name"] for a in r.json()]
+    assert "agent-x" in names
