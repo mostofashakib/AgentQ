@@ -96,6 +96,17 @@ class AlertHistory(Base):
     fired_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
 
+class AppSettings(Base):
+    __tablename__ = "app_settings"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default="singleton")
+    token_explosion_threshold: Mapped[int] = mapped_column(Integer, default=8000)
+    excessive_tool_calls_threshold: Mapped[int] = mapped_column(Integer, default=20)
+    infinite_loop_repeat_threshold: Mapped[int] = mapped_column(Integer, default=5)
+    behavior_similarity_threshold: Mapped[float] = mapped_column(Float, default=0.82)
+    default_alert_channel: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+
 # Pydantic models for ingest / inter-module data transfer
 
 class SpanRecord(BaseModel):
