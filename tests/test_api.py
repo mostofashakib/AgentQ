@@ -52,13 +52,45 @@ async def test_ingest_json(client):
     assert r.json()["accepted"] == 1
 
 
-async def test_ingest_protobuf_rejected(client):
+async def test_ingest_protobuf_accepted(client):
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+        ExportTraceServiceRequest,
+    )
+    from opentelemetry.proto.trace.v1.trace_pb2 import ResourceSpans, ScopeSpans, Span
+    from opentelemetry.proto.resource.v1.resource_pb2 import Resource
+    from opentelemetry.proto.common.v1.common_pb2 import KeyValue, AnyValue
+
+    def kv(key, **value_kwargs):
+        return KeyValue(key=key, value=AnyValue(**value_kwargs))
+
+    span = Span(
+        trace_id=b"\x01" * 16, span_id=b"\x02" * 8, name="chat claude",
+        kind=Span.SPAN_KIND_CLIENT,
+        start_time_unix_nano=1_000_000_000_000, end_time_unix_nano=1_000_100_000_000,
+        attributes=[kv("gen_ai.system", string_value="anthropic")],
+    )
+    resource_spans = ResourceSpans(
+        resource=Resource(attributes=[kv("service.name", string_value="test-agent")]),
+        scope_spans=[ScopeSpans(spans=[span])],
+    )
+    body = ExportTraceServiceRequest(resource_spans=[resource_spans]).SerializeToString()
+
     r = await client.post(
         "/v1/traces",
-        content=b"\x00\x01",
+        content=body,
         headers={"content-type": "application/x-protobuf"},
     )
-    assert r.status_code == 415
+    assert r.status_code == 200
+    assert r.json()["accepted"] == 1
+
+
+async def test_ingest_protobuf_malformed_body_400(client):
+    r = await client.post(
+        "/v1/traces",
+        content=b"\xff\xff\xff\xff\xff\xff\xff\xff\xff",
+        headers={"content-type": "application/x-protobuf"},
+    )
+    assert r.status_code == 400
 
 
 async def test_traces_after_ingest(client):

@@ -701,16 +701,16 @@ async def test_scenario_integrity_time_inversion(client):
     assert violations[0].severity == "low"
 
 
-# ─── Scenario 18: protobuf rejection ─────────────────────────────────────────
+# ─── Scenario 18: protobuf ingestion ──────────────────────────────────────────
 
-async def test_scenario_protobuf_rejected(client):
-    """AgentQ only accepts application/json — protobuf must be rejected with 415."""
+async def test_scenario_protobuf_malformed_body_400(client):
+    """A malformed protobuf body is rejected with 400, not silently accepted."""
     r = await client.post(
         "/v1/traces",
-        content=b"\x0a\x01\x02",
+        content=b"\xff\xff\xff\xff\xff\xff\xff\xff\xff",
         headers={"content-type": "application/x-protobuf"},
     )
-    assert r.status_code == 415
+    assert r.status_code == 400
 
 
 # ─── Scenario 19: pagination ──────────────────────────────────────────────────
