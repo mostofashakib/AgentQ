@@ -1,20 +1,23 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, type Span } from '@/lib/api'
 import { KindBadge } from '@/components/StatusBadge'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
 interface LiveEvent { type: string; data: Record<string, unknown> }
 
-export default function TracesPage() {
+function TracesContent() {
   const [spans, setSpans] = useState<Span[]>([])
   const [live, setLive] = useState(false)
   const [alertCount, setAlertCount] = useState(0)
+  const searchParams = useSearchParams()
+  const service = searchParams.get('service') ?? undefined
 
   useEffect(() => {
-    api.traces.list({ limit: 50 }).then(setSpans)
-  }, [])
+    api.traces.list({ limit: 50, service }).then(setSpans)
+  }, [service])
 
   useEffect(() => {
     const es = new EventSource(api.streamUrl())
@@ -40,7 +43,10 @@ export default function TracesPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-lg font-semibold tracking-wide">Live Trace Feed</h1>
-          <p className="text-sm text-muted mt-0.5">Real-time span stream from connected agents</p>
+          <p className="text-sm text-muted mt-0.5">
+            Real-time span stream from connected agents
+            {service && <> &middot; filtered by <span className="text-cyan">{service}</span></>}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {alertCount > 0 && (
@@ -111,5 +117,13 @@ export default function TracesPage() {
         </table>
       </div>
     </div>
+  )
+}
+
+export default function TracesPage() {
+  return (
+    <Suspense fallback={null}>
+      <TracesContent />
+    </Suspense>
   )
 }
