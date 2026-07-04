@@ -65,3 +65,22 @@ async def test_put_settings_updates_only_provided_fields():
     guardrail_settings.invalidate_cache()
     row = await guardrail_settings.get_app_settings()
     assert row.token_explosion_threshold == 5000
+
+
+async def test_get_settings_endpoint_seeds_from_env_default_on_first_creation(monkeypatch):
+    """GET /api/settings, hit before get_app_settings() has ever created the
+    row, must still seed behavior_similarity_threshold from
+    agentq.config.settings rather than falling back to the hardcoded column
+    default (0.82). Regression test for the dual get-or-create bug."""
+    from agentq.guardrails import settings as guardrail_settings
+    from agentq.config import settings as env_settings
+
+    # Force a fresh lookup against the (fresh, per-test) in-memory DB instead
+    # of returning a cached row from a previous test.
+    guardrail_settings.invalidate_cache()
+    monkeypatch.setattr(env_settings, "behavior_similarity_threshold", 0.55)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.get("/api/settings")
+    assert r.status_code == 200
+    assert r.json()["behavior_similarity_threshold"] == pytest.approx(0.55)

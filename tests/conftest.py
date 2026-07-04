@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 
 import agentq.db.engine as db_engine_module
 from agentq.db.models import Base
+from agentq.guardrails import settings as guardrail_settings
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -34,6 +35,14 @@ async def _use_memory_db(monkeypatch):
     monkeypatch.setattr(db_engine_module, "engine", engine)
     monkeypatch.setattr(db_engine_module, "async_session", session_maker)
     monkeypatch.setattr(db_engine_module, "get_session", _get_session)
+
+    # agentq.guardrails.settings caches the AppSettings row at module scope
+    # across a refresh window, independent of which DB engine is active. Since
+    # each test gets a brand new in-memory engine above, a cache entry left
+    # over from a previous test would point at an already-disposed engine and
+    # mask the fresh DB's actual (empty) state. Reset it so every test starts
+    # with a cold cache against its own fresh DB.
+    guardrail_settings.invalidate_cache()
 
     yield
 

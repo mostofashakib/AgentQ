@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from agentq.db.engine import get_session
 from agentq.db.models import AppSettings
-from agentq.guardrails.settings import invalidate_cache
+from agentq.guardrails.settings import get_app_settings, invalidate_cache
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -18,20 +18,23 @@ class SettingsUpdate(BaseModel):
 
 
 async def _get_or_create_row(session: AsyncSession) -> AppSettings:
+    # Delegate the get-or-create-with-correct-seeding logic to
+    # agentq.guardrails.settings.get_app_settings(), which seeds
+    # behavior_similarity_threshold from agentq.config.settings on first
+    # creation. This guarantees the singleton row exists (and is seeded
+    # correctly) before we re-select it in *this* session, since we need a
+    # row bound to `session` to mutate and commit.
+    await get_app_settings()
     row = (
         await session.execute(select(AppSettings).where(AppSettings.id == "singleton"))
     ).scalars().first()
-    if row is None:
-        row = AppSettings(id="singleton")
-        session.add(row)
-        await session.commit()
-        await session.refresh(row)
+    assert row is not None
     return row
 
 
 @router.get("")
-async def get_settings(session: AsyncSession = Depends(get_session)):
-    row = await _get_or_create_row(session)
+async def get_settings():
+    row = await get_app_settings()
     return _to_dict(row)
 
 
