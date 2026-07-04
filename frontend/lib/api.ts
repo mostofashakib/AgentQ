@@ -109,6 +109,14 @@ export interface AlertHistory {
   fired_at: string
 }
 
+export interface Agent {
+  service_name: string
+  span_count: number
+  first_seen: string
+  last_seen: string
+  violation_count: number
+}
+
 export const api = {
   traces: {
     list: (params?: { limit?: number; service?: string }) =>
@@ -170,6 +178,10 @@ export const api = {
       list: (limit = 100): Promise<AlertHistory[]> =>
         fetch(`${API}/api/alerts/history?limit=${limit}`).then(r => r.json()),
     },
+  },
+  agents: {
+    list: (): Promise<Agent[]> =>
+      fetch(`${API}/api/agents`).then(r => r.json()),
   },
   streamUrl: () => `${API}/api/stream`,
 }
