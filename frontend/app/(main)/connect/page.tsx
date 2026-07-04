@@ -98,6 +98,7 @@ function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <button
+      type="button"
       onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
       className="flex items-center gap-1.5 text-xs text-muted hover:text-cyan transition-colors"
     >
@@ -111,8 +112,8 @@ export default function ConnectPage() {
   const [frameworkId, setFrameworkId] = useState<FrameworkId>('openclaw')
   const [agentName, setAgentName] = useState('my-agent')
   const [agents, setAgents] = useState<Agent[]>([])
-  const [captureTraces, setCaptureTraces] = useState(true)
   const [connectionToken, setConnectionToken] = useState('')
+  const [connectionError, setConnectionError] = useState('')
 
   useEffect(() => {
     const poll = () => api.agents.list().then(setAgents).catch(() => {})
@@ -127,11 +128,16 @@ export default function ConnectPage() {
   async function connectAgent() {
     const serviceName = agentName.trim()
     if (!serviceName) return
-    const connection = await api.agents.connect({
-      service_name: serviceName, capture_traces: captureTraces,
-    })
-    setConnectionToken(connection.connection_token)
-    setAgents(await api.agents.list())
+    setConnectionError('')
+    try {
+      const connection = await api.agents.connect({
+        service_name: serviceName, capture_traces: true,
+      })
+      setConnectionToken(connection.connection_token)
+      setAgents(await api.agents.list())
+    } catch {
+      setConnectionError('Could not connect this agent. Check the API connection and try again.')
+    }
   }
 
   async function disconnectAgent(serviceName: string) {
@@ -142,17 +148,18 @@ export default function ConnectPage() {
   return (
     <div className="p-6 max-w-3xl">
       <div className="mb-6">
-        <h1 className="text-lg font-semibold">Connect an Agent</h1>
-        <p className="text-sm text-muted mt-0.5">Speak AOP/1 — the AgentQ Observability Protocol — from any agent framework</p>
+        <h1 className="text-lg font-semibold">Agents</h1>
       </div>
 
       <div className="mb-6">
-        <p className="text-xs text-muted font-mono mb-2">1. FRAMEWORK</p>
+        <p className="text-xs text-muted font-mono mb-2">1. INTEGRATION</p>
         <div className="flex gap-2 flex-wrap">
           {FRAMEWORKS.map(f => (
             <button
               key={f.id}
+              type="button"
               onClick={() => setFrameworkId(f.id)}
+              aria-pressed={frameworkId === f.id}
               className={`px-3 py-1.5 rounded text-sm border transition-colors ${
                 frameworkId === f.id ? 'bg-cyan/10 text-cyan border-cyan/30' : 'text-muted border-border hover:text-text hover:bg-border/40'
               }`}
@@ -164,34 +171,27 @@ export default function ConnectPage() {
       </div>
 
       <div className="mb-6">
-        <p className="text-xs text-muted font-mono mb-2">2. AGENT NAME</p>
+        <label htmlFor="agent-name" className="block text-xs text-muted font-mono mb-2">2. AGENT NAME</label>
         <input
+          id="agent-name"
           value={agentName}
-          onChange={e => setAgentName(e.target.value)}
+          onChange={e => { setAgentName(e.target.value); setConnectionToken(''); setConnectionError('') }}
           placeholder="my-agent"
           className="bg-surface border border-border rounded px-3 py-1.5 text-sm text-text font-mono focus:outline-none focus:border-cyan w-64"
         />
-        <p className="text-xs text-muted mt-1.5">Becomes the <code className="text-cyan">service.name</code> AgentQ uses to identify this agent.</p>
-      </div>
-
-      <div className="mb-6">
-        <p className="text-xs text-muted font-mono mb-2">3. MONITORING</p>
-        <div className="flex gap-5 mb-3">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={captureTraces} onChange={e => setCaptureTraces(e.target.checked)} />
-            Observe traces
-          </label>
-        </div>
+        <p className="text-xs text-muted mt-1.5">Must match the agent&apos;s <code className="text-cyan">service.name</code>.</p>
         <button type="button" onClick={connectAgent}
           disabled={!agentName.trim()}
-          className="text-xs font-mono px-3 py-1.5 rounded border border-cyan/40 text-cyan hover:bg-cyan/10 disabled:opacity-40">
-          Connect and authorize agent
+          className="mt-3 text-xs font-mono px-3 py-1.5 rounded border border-cyan/40 text-cyan hover:bg-cyan/10 disabled:opacity-40">
+          Connect agent
         </button>
-        <p className="text-xs text-muted mt-2">Behavior analysis is always enabled for connected agents. Trace metadata required for clustering is retained.</p>
+        <p className="text-xs text-muted mt-2">Behavior analysis and trace monitoring start automatically.</p>
+        {connectionError && <p role="alert" className="text-xs text-red mt-2">{connectionError}</p>}
       </div>
 
-      <div className="mb-6">
-        <p className="text-xs text-muted font-mono mb-2">4. CONFIG</p>
+      {connectionToken && <div className="mb-6">
+        <p className="text-xs text-muted font-mono mb-2">3. CONFIGURATION</p>
+        <p className="text-xs text-amber mb-2">Copy this configuration now. The connection token is shown once.</p>
         <div className="rounded border border-border overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2 bg-surface/50 border-b border-border">
             <span className="text-xs text-muted font-mono uppercase">{framework.lang}</span>
@@ -201,9 +201,9 @@ export default function ConnectPage() {
             {framework.snippet(agentName.trim() || 'my-agent', connectionToken)}
           </pre>
         </div>
-      </div>
+      </div>}
 
-      <div className="rounded border border-border p-4">
+      {connectionToken && <div className="rounded border border-border p-4">
         {connected ? (
           <div className="flex items-center gap-3">
             <span className="w-2 h-2 rounded-full bg-green" />
@@ -220,7 +220,7 @@ export default function ConnectPage() {
             <p className="text-sm text-muted font-mono">Waiting for spans from &ldquo;{agentName.trim() || 'my-agent'}&rdquo;…</p>
           </div>
         )}
-      </div>
+      </div>}
 
       <div className="mt-6">
         <p className="text-xs text-muted font-mono mb-2">CONNECTED AGENTS</p>
@@ -232,7 +232,7 @@ export default function ConnectPage() {
                 <p className="text-xs text-muted">{agent.span_count} spans · {agent.violation_count} violations · behavior active</p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
-                <Link href={`/traces?service=${encodeURIComponent(agent.service_name)}`} className="text-xs text-cyan hover:underline">Observe</Link>
+                <Link href={`/traces?service=${encodeURIComponent(agent.service_name)}`} className="text-xs text-cyan hover:underline">View traces</Link>
                 <button type="button" onClick={() => disconnectAgent(agent.service_name)}
                   className="text-xs text-muted hover:text-red-400 transition-colors">Disconnect</button>
               </div>

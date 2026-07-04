@@ -39,11 +39,8 @@ function TracesContent() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-lg font-semibold tracking-wide">Live Trace Feed</h1>
-          <p className="text-sm text-muted mt-0.5">
-            Real-time span stream from connected agents
-            {service && <> &middot; filtered by <span className="text-cyan">{service}</span></>}
-          </p>
+          <h1 className="text-lg font-semibold tracking-wide">Traces</h1>
+          {service && <p className="text-sm text-muted mt-0.5">Filtered by <span className="text-cyan">{service}</span></p>}
         </div>
         <div className="flex items-center gap-3">
           {alertCount > 0 && (
@@ -55,7 +52,7 @@ function TracesContent() {
             live ? 'bg-green/10 border-green/20 text-green' : 'bg-muted/10 border-border text-muted'
           }`}>
             <span className={`w-1.5 h-1.5 rounded-full ${live ? 'bg-green animate-pulse' : 'bg-muted'}`} />
-            {!live && 'CONNECTING'}
+            {live ? 'LIVE' : 'CONNECTING'}
           </div>
         </div>
       </div>
@@ -107,7 +104,7 @@ function TracesContent() {
             </AnimatePresence>
             {spans.length === 0 && (
               <tr><td colSpan={6} className="px-4 py-12 text-center text-muted text-sm">
-                No spans yet. Connect an agent with OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:8000
+                No traces yet. <Link href="/connect" className="text-cyan hover:underline">Connect an agent</Link>
               </td></tr>
             )}
           </tbody>

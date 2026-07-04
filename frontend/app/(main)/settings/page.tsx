@@ -1,24 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { api, type AppSettings } from '@/lib/api'
-import { Check, Copy } from 'lucide-react'
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <button
-      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-      className="flex items-center gap-1.5 text-xs text-muted hover:text-cyan transition-colors"
-    >
-      {copied ? <Check size={12} className="text-green" /> : <Copy size={12} />}
-      {copied ? 'Copied' : 'Copy'}
-    </button>
-  )
-}
-
-const REPORT_EXAMPLE = `curl -X POST http://localhost:8000/api/report \\
-  -H "Content-Type: application/json" \\
-  -d '{"agent_name": "my-agent", "tool_name": "send_email", "input": "to: a@b.com", "output": "sent"}'`
 
 export default function SettingsPage() {
   const [thresholds, setThresholds] = useState<AppSettings | null>(null)
@@ -90,7 +72,6 @@ export default function SettingsPage() {
     <div className="p-6 max-w-2xl">
       <div className="mb-6">
         <h1 className="text-lg font-semibold">Settings</h1>
-        <p className="text-sm text-muted mt-0.5">Guardrail thresholds, default alert channel, and connection info</p>
       </div>
 
       <div className="mb-8">
@@ -184,33 +165,7 @@ export default function SettingsPage() {
             className="text-xs font-mono px-3 py-1.5 rounded border border-cyan/40 text-cyan hover:bg-cyan/10 transition-colors">
             Save LLM provider
           </button>
-          <p className="text-xs text-muted">
-            This key is yours — AgentQ never uses a shared or bundled key. Behavior-cluster naming is
-            skipped until you add one; everything else works without it.
-          </p>
-        </div>
-      </div>
-
-      <div>
-        <p className="text-xs text-muted font-mono mb-3">CONNECT VIA MCP OR API</p>
-        <div className="rounded border border-border p-4 space-y-3">
-          <div>
-            <p className="text-xs text-muted mb-1">MCP server endpoint</p>
-            <div className="flex items-center justify-between rounded border border-border bg-surface/50 px-3 py-2">
-              <code className="text-xs font-mono text-cyan">http://localhost:8000/mcp</code>
-              <CopyButton text="http://localhost:8000/mcp" />
-            </div>
-          </div>
-          <div>
-            <p className="text-xs text-muted mb-1">Simple report API</p>
-            <div className="rounded border border-border overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-2 bg-surface/50 border-b border-border">
-                <span className="text-xs text-muted font-mono">shell</span>
-                <CopyButton text={REPORT_EXAMPLE} />
-              </div>
-              <pre className="p-3 text-xs font-mono overflow-x-auto whitespace-pre text-text bg-surface/20">{REPORT_EXAMPLE}</pre>
-            </div>
-          </div>
+          <p className="text-xs text-muted">Used only to name behavior clusters. AgentQ has no bundled API key.</p>
         </div>
       </div>
 
