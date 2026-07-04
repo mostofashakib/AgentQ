@@ -1,6 +1,8 @@
+import logging
 from contextlib import asynccontextmanager, AsyncExitStack
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from agentq.api.mcp_auth import MCPAuthMiddleware
 from agentq.api.rate_limit import RateLimitMiddleware
 from agentq.config import settings
 from agentq.db.engine import create_tables, async_session
@@ -20,6 +22,8 @@ from agentq.mcp.server import mcp as mcp_server
 from agentq.monitoring.retention import prune_expired_telemetry
 from agentq.utils.tasks import BackgroundTaskGroup
 
+logger = logging.getLogger(__name__)
+
 mcp_app = mcp_server.streamable_http_app()
 
 
@@ -28,6 +32,14 @@ async def lifespan(app: FastAPI):
     async with AsyncExitStack() as stack:
         await stack.enter_async_context(mcp_app.router.lifespan_context(mcp_app))
         await create_tables()
+        if settings.auth_required and not any(
+            [settings.admin_api_key, settings.viewer_api_key, settings.ingest_api_key]
+        ):
+            logger.error(
+                "AUTH_REQUIRED but no API keys are configured "
+                "(ADMIN_API_KEY / VIEWER_API_KEY / INGEST_API_KEY). "
+                "Every request will be rejected until at least one is set — see .env.example."
+            )
         async with async_session() as session:
             await prune_expired_telemetry(session)
         if settings.demo_mode:
@@ -65,7 +77,7 @@ app.include_router(report_route.router)
 app.include_router(monitoring_route.router)
 app.include_router(approvals_route.router)
 
-app.mount("/mcp", mcp_app)
+app.mount("/mcp", MCPAuthMiddleware(mcp_app))
 
 if settings.demo_mode:
     from agentq.api.routes import demo as demo_route
