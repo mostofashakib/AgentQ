@@ -25,6 +25,8 @@ async def get_app_settings() -> AppSettings:
             row = AppSettings(
                 id="singleton",
                 behavior_similarity_threshold=env_settings.behavior_similarity_threshold,
+                llm_model=env_settings.judge_model,
+                llm_api_key=env_settings.anthropic_api_key or None,
             )
             session.add(row)
             await session.commit()

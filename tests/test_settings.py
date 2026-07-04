@@ -84,3 +84,30 @@ async def test_get_settings_endpoint_seeds_from_env_default_on_first_creation(mo
         r = await client.get("/api/settings")
     assert r.status_code == 200
     assert r.json()["behavior_similarity_threshold"] == pytest.approx(0.55)
+
+
+async def test_get_app_settings_seeds_llm_fields_from_env_on_first_creation(monkeypatch):
+    from agentq.guardrails import settings as guardrail_settings
+    from agentq.config import settings as env_settings
+
+    guardrail_settings.invalidate_cache()
+    monkeypatch.setattr(env_settings, "judge_model", "claude-sonnet-4-6")
+    monkeypatch.setattr(env_settings, "anthropic_api_key", "sk-ant-test-key")
+
+    row = await guardrail_settings.get_app_settings()
+
+    assert row.llm_provider == "anthropic"
+    assert row.llm_model == "claude-sonnet-4-6"
+    assert row.llm_api_key == "sk-ant-test-key"
+
+
+async def test_get_app_settings_seeds_none_llm_api_key_when_env_key_empty(monkeypatch):
+    from agentq.guardrails import settings as guardrail_settings
+    from agentq.config import settings as env_settings
+
+    guardrail_settings.invalidate_cache()
+    monkeypatch.setattr(env_settings, "anthropic_api_key", "")
+
+    row = await guardrail_settings.get_app_settings()
+
+    assert row.llm_api_key is None

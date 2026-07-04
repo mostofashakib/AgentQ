@@ -179,6 +179,9 @@ class AppSettings(Base):
     infinite_loop_repeat_threshold: Mapped[int] = mapped_column(Integer, default=5)
     behavior_similarity_threshold: Mapped[float] = mapped_column(Float, default=0.82)
     default_alert_channel: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    llm_provider: Mapped[str] = mapped_column(String, default="anthropic")
+    llm_model: Mapped[str] = mapped_column(String, default="claude-sonnet-4-6")
+    llm_api_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
 # Pydantic models for ingest / inter-module data transfer
