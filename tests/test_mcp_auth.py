@@ -19,12 +19,21 @@ async def _mcp_session_manager():
     try:
         yield
     finally:
-        # Suppress exit errors from pytest-asyncio running exit in a different task context.
-        # The stack will be cleaned up when the process exits.
+        # anyio's CancelScope.__exit__ (inside StreamableHTTPSessionManager.run()'s
+        # task group) enforces that a cancel scope must be exited from the exact
+        # asyncio Task that entered it. pytest-asyncio resumes this module-scoped
+        # async-generator fixture's teardown in a different top-level task than the
+        # one that entered it, which trips that invariant every time — this is a
+        # structural pytest-asyncio/anyio interaction, not fixable via loop_scope
+        # tuning (confirmed). Currently harmless: the MCP session manager's task
+        # group has no live children at this point since none of this module's
+        # tests open a real streaming MCP session — if this file is ever extended
+        # to exercise a real session, revisit whether tasks are actually leaking.
         try:
             await stack.__aexit__(None, None, None)
-        except RuntimeError:
-            pass
+        except RuntimeError as e:
+            if "different task" not in str(e):
+                raise
 
 
 async def test_mcp_mount_rejects_missing_api_key(monkeypatch):
