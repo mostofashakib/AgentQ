@@ -6,6 +6,7 @@ import uuid
 from sqlalchemy import BigInteger, Boolean, Float, Integer, JSON, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from pydantic import BaseModel, Field
+from agentq.utils.time import utc_now
 
 
 class Base(DeclarativeBase):
@@ -32,7 +33,7 @@ class Span(Base):
     gen_ai_output_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     gen_ai_tool_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     attributes: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
 
 class AgentRun(Base):
@@ -60,8 +61,8 @@ class AgentRun(Base):
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
     step_count: Mapped[int] = mapped_column(Integer, default=0)
     terminal_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
 
 
 class EvaluationResult(Base):
@@ -74,7 +75,7 @@ class EvaluationResult(Base):
     status: Mapped[str] = mapped_column(String, index=True)
     score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
 
 class MonitoringEvent(Base):
@@ -89,7 +90,7 @@ class MonitoringEvent(Base):
     severity: Mapped[str] = mapped_column(String, index=True)
     reason: Mapped[str] = mapped_column(Text)
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
 
 class ApprovalRequest(Base):
@@ -105,7 +106,7 @@ class ApprovalRequest(Base):
     reviewer_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     decided_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
 
 class Violation(Base):
@@ -120,7 +121,7 @@ class Violation(Base):
     description: Mapped[str] = mapped_column(String)
     evidence: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     chain_span_ids: Mapped[list] = mapped_column(JSON, default=list)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
 
 class BehaviorCluster(Base):
@@ -132,7 +133,7 @@ class BehaviorCluster(Base):
     rubric: Mapped[list] = mapped_column(JSON, default=list)
     centroid: Mapped[list] = mapped_column(JSON, default=list)
     trace_count: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
 
 class BehaviorAssignment(Base):
@@ -142,7 +143,7 @@ class BehaviorAssignment(Base):
     trace_id: Mapped[str] = mapped_column(String, index=True)
     cluster_id: Mapped[str] = mapped_column(String, index=True)
     similarity_score: Mapped[float] = mapped_column(Float)
-    assigned_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    assigned_at: Mapped[datetime] = mapped_column(default=utc_now)
 
 
 class AlertRule(Base):
@@ -155,7 +156,7 @@ class AlertRule(Base):
     frequency_limit: Mapped[int] = mapped_column(Integer, default=0)
     cooldown_minutes: Mapped[int] = mapped_column(Integer, default=0)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
 
 class AlertHistory(Base):
@@ -166,7 +167,7 @@ class AlertHistory(Base):
     trace_id: Mapped[str] = mapped_column(String)
     span_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     channel: Mapped[str] = mapped_column(String)
-    fired_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    fired_at: Mapped[datetime] = mapped_column(default=utc_now)
 
 
 class AppSettings(Base):
@@ -198,16 +199,16 @@ class SpanRecord(BaseModel):
     gen_ai_input_tokens: Optional[int] = None
     gen_ai_output_tokens: Optional[int] = None
     gen_ai_tool_name: Optional[str] = None
-    gen_ai_finish_reasons: list[str] = []
-    attributes: dict = {}
+    gen_ai_finish_reasons: list[str] = Field(default_factory=list)
+    attributes: dict = Field(default_factory=dict)
 
 
 class ClusterRecord(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
-    rubric: list[str] = []
-    centroid: list[float] = []
+    rubric: list[str] = Field(default_factory=list)
+    centroid: list[float] = Field(default_factory=list)
     trace_count: int = 0
     created_at: Optional[datetime] = None
 
@@ -217,4 +218,4 @@ class AssignmentRecord(BaseModel):
     trace_id: str
     cluster_id: str
     similarity_score: float
-    assigned_at: datetime = Field(default_factory=datetime.utcnow)
+    assigned_at: datetime = Field(default_factory=utc_now)

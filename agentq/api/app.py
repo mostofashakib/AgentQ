@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager, AsyncExitStack
-import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from agentq.config import settings
@@ -18,6 +17,7 @@ from agentq.behaviors.worker import behavior_worker
 from agentq.api.alerts.worker import alert_worker
 from agentq.mcp.server import mcp as mcp_server
 from agentq.monitoring.retention import prune_expired_telemetry
+from agentq.utils.tasks import BackgroundTaskGroup
 
 mcp_app = mcp_server.streamable_http_app()
 
@@ -33,32 +33,18 @@ async def lifespan(app: FastAPI):
             from agentq.demo.seed import seed_demo
             async with async_session() as session:
                 await seed_demo(session)
-        task = asyncio.create_task(guardrail_worker())
-        behavior_task = asyncio.create_task(behavior_worker())
-        alert_task = asyncio.create_task(alert_worker())
-        yield
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
-        behavior_task.cancel()
-        try:
-            await behavior_task
-        except asyncio.CancelledError:
-            pass
-        alert_task.cancel()
-        try:
-            await alert_task
-        except asyncio.CancelledError:
-            pass
+        async with BackgroundTaskGroup() as workers:
+            workers.start(guardrail_worker(), name="guardrail-worker")
+            workers.start(behavior_worker(), name="behavior-worker")
+            workers.start(alert_worker(), name="alert-worker")
+            yield
 
 
 app = FastAPI(title="AgentQ", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.allowed_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

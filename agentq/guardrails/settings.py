@@ -4,6 +4,7 @@ from sqlalchemy import select
 import agentq.db.engine as _db_engine
 from agentq.db.models import AppSettings
 from agentq.config import settings as env_settings
+from agentq.utils.time import utc_now
 
 _cache: AppSettings | None = None
 _cached_at: datetime | None = None
@@ -12,7 +13,7 @@ _REFRESH_INTERVAL = 60
 
 async def get_app_settings() -> AppSettings:
     global _cache, _cached_at
-    now = datetime.utcnow()
+    now = utc_now()
     if _cache is not None and _cached_at and (now - _cached_at).total_seconds() < _REFRESH_INTERVAL:
         return _cache
 

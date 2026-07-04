@@ -9,6 +9,7 @@ import agentq.db.engine as _db_engine
 from agentq.events import alert_event_queue, AlertEvent, ViolationAlertEvent
 from agentq.api.alerts.cooldown import cooldown_tracker
 from agentq.api.alerts.rules import matches
+from agentq.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ _REFRESH_INTERVAL = 60
 
 async def _load_rules() -> list[AlertRule]:
     global _rules_cache, _rules_refreshed_at
-    now = datetime.utcnow()
+    now = utc_now()
     if _rules_refreshed_at and (now - _rules_refreshed_at).total_seconds() < _REFRESH_INTERVAL:
         return _rules_cache
     async with _db_engine.async_session() as session:
@@ -74,7 +75,7 @@ async def alert_worker() -> None:
                             trace_id=trace_id,
                             span_id=span_id,
                             channel=channel_label,
-                            fired_at=datetime.utcnow(),
+                            fired_at=utc_now(),
                         ))
                         await session.commit()
         except Exception:

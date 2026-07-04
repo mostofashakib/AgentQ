@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.engine import get_session
 from agentq.ingest.parser import parse_otlp_json, parse_otlp_protobuf
 from agentq.ingest.writer import write_spans
+from agentq.api.security import require_ingest
 
 router = APIRouter()
 
@@ -11,6 +12,7 @@ router = APIRouter()
 async def receive_traces(
     request: Request,
     session: AsyncSession = Depends(get_session),
+    _principal=Depends(require_ingest),
 ):
     content_type = request.headers.get("content-type", "")
     if "application/x-protobuf" in content_type:

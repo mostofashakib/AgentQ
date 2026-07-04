@@ -1,5 +1,5 @@
 from agentq.api.alerts.cooldown import CooldownTracker
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 
 def test_first_fire_is_always_allowed():
@@ -38,7 +38,7 @@ def test_cooldown_allows_after_window_expires(monkeypatch):
     t = CooldownTracker()
     t.record_fire("r1")
     # Simulate last_fired being 2 hours ago
-    past = datetime.utcnow() - timedelta(hours=2)
+    past = datetime.now(UTC) - timedelta(hours=2)
     t._state["r1"]["last_fired"] = past
     assert t.can_fire("r1", frequency_limit=0, cooldown_minutes=60) is True
 

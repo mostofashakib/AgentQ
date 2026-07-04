@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from agentq.db.engine import get_session
 from agentq.ingest.simple_report import build_span_record_from_report
 from agentq.ingest.writer import write_spans
+from agentq.api.security import require_ingest
 
 router = APIRouter(prefix="/api")
 
@@ -13,11 +14,15 @@ class ReportActionRequest(BaseModel):
     tool_name: str
     input: str = ""
     output: str = ""
-    attributes: dict = {}
+    attributes: dict = Field(default_factory=dict)
 
 
 @router.post("/report")
-async def report_action(body: ReportActionRequest, session: AsyncSession = Depends(get_session)):
+async def report_action(
+    body: ReportActionRequest,
+    session: AsyncSession = Depends(get_session),
+    _principal=Depends(require_ingest),
+):
     record = build_span_record_from_report(
         agent_name=body.agent_name,
         tool_name=body.tool_name,

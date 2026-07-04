@@ -281,6 +281,13 @@ RAW_OUTPUT_LOGGING_ENABLED=false
 STRUCTURED_LOGGING_ENABLED=true
 TELEMETRY_RETENTION_DAYS=30
 
+# API security; authentication defaults on outside local development
+# API_AUTH_ENABLED=true  # optional locally; defaults to true outside local
+VIEWER_API_KEY=
+ADMIN_API_KEY=
+INGEST_API_KEY=
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+
 # Circuit breakers and anomaly thresholds
 MAX_AGENT_STEPS=50
 MAX_MODEL_CALLS=20
@@ -320,6 +327,15 @@ SMTP_PASSWORD=
 SMTP_FROM=
 SMTP_TO=
 ```
+
+API clients send credentials in `X-AgentQ-API-Key`. In staging and production,
+use distinct random keys for read-only access, administrative actions, and
+telemetry ingestion. If authentication is enabled without a matching key, the
+API denies the request. Never expose these keys in browser-delivered code; use
+an authenticated backend or trusted proxy for the dashboard.
+
+Development standards, including the required red-green-refactor workflow, are
+documented in [`ENGINEERING.md`](ENGINEERING.md).
 
 ---
 

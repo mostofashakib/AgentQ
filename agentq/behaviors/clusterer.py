@@ -1,10 +1,10 @@
 from __future__ import annotations
 import uuid
-from datetime import datetime
 import numpy as np
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.models import BehaviorCluster, BehaviorAssignment
+from agentq.utils.time import utc_now
 from agentq.guardrails.settings import get_app_settings
 
 
@@ -57,7 +57,7 @@ async def assign(
         trace_id=trace_id,
         cluster_id=best_cluster.id,
         similarity_score=best_sim,
-        assigned_at=datetime.utcnow(),
+        assigned_at=utc_now(),
     )
     session.add(assignment)
     await session.commit()

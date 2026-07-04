@@ -9,7 +9,7 @@ decision immediately so the agent can halt before side effects occur.
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Any
 from agentq.guardrails.intercept import check_action
 from agentq.config import settings
@@ -17,6 +17,7 @@ from agentq.db.engine import get_session
 from agentq.db.models import AgentRun, ApprovalRequest, MonitoringEvent, Span
 from agentq.monitoring.redaction import redact
 from agentq.monitoring.runs import circuit_breaker_reason
+from agentq.api.security import require_ingest
 
 router = APIRouter(prefix="/api")
 
@@ -26,20 +27,24 @@ class InterceptRequest(BaseModel):
     span_id: str
     tool_name: str
     service_name: str = "unknown"
-    attributes: dict[str, Any] = {}
+    attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 class InterceptResponse(BaseModel):
     allowed: bool
     rule_id: str | None = None
     reason: str | None = None
-    violations: list[dict] = []
+    violations: list[dict] = Field(default_factory=list)
     approval_request_id: str | None = None
     status: str | None = None
 
 
 @router.post("/intercept", response_model=InterceptResponse)
-async def intercept_tool_call(req: InterceptRequest, session: AsyncSession = Depends(get_session)) -> InterceptResponse:
+async def intercept_tool_call(
+    req: InterceptRequest,
+    session: AsyncSession = Depends(get_session),
+    _principal=Depends(require_ingest),
+) -> InterceptResponse:
     """
     Run guardrail checks before a tool executes. Returns immediately.
 

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.engine import get_session, async_session
 from agentq.db.models import BehaviorCluster, BehaviorAssignment
 from agentq.behaviors.rubric import generate_rubric
+from agentq.api.security import require_admin
 
 router = APIRouter(prefix="/api/behaviors", tags=["behaviors"])
 
@@ -47,7 +48,7 @@ async def get_behavior(cluster_id: str, session: AsyncSession = Depends(get_sess
 
 
 @router.post("/{cluster_id}/rubric")
-async def trigger_rubric(cluster_id: str):
+async def trigger_rubric(cluster_id: str, _principal=Depends(require_admin)):
     # Create a new session inside the task — the DI session closes when the route returns
     async def _run() -> None:
         async with async_session() as session:

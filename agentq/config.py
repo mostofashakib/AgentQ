@@ -9,6 +9,11 @@ class Settings(BaseSettings):
     raw_prompt_logging_enabled: bool = False
     raw_output_logging_enabled: bool = False
     structured_logging_enabled: bool = True
+    api_auth_enabled: bool | None = None
+    viewer_api_key: str = ""
+    admin_api_key: str = ""
+    ingest_api_key: str = ""
+    cors_allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     telemetry_retention_days: int = 30
     max_agent_steps: int = 50
     max_model_calls: int = 20
@@ -46,6 +51,15 @@ class Settings(BaseSettings):
     @property
     def approval_tools(self) -> set[str]:
         return {item.strip().lower() for item in self.approval_required_tools.split(",") if item.strip()}
+
+    @property
+    def auth_required(self) -> bool:
+        """Require credentials by default outside local development."""
+        return self.api_auth_enabled if self.api_auth_enabled is not None else self.environment != "local"
+
+    @property
+    def allowed_cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
 
 settings = Settings()

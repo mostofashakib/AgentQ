@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Literal, Optional
 import uuid
 from pydantic import BaseModel, Field
+from agentq.utils.time import utc_now
 
 ThreatClass = Literal["injection", "scope", "exfiltration", "behavioral", "integrity"]
 Severity = Literal["low", "medium", "high", "critical"]
@@ -17,5 +18,5 @@ class ViolationRecord(BaseModel):
     severity: Severity
     description: str
     evidence: Optional[str] = None
-    chain_span_ids: list[str] = []
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    chain_span_ids: list[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=utc_now)

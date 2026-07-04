@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from agentq.db.engine import get_session
 from agentq.db.models import AppSettings
 from agentq.guardrails.settings import get_app_settings, invalidate_cache
+from agentq.api.security import require_admin, require_viewer
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -33,13 +34,17 @@ async def _get_or_create_row(session: AsyncSession) -> AppSettings:
 
 
 @router.get("")
-async def get_settings():
+async def get_settings(_principal=Depends(require_viewer)):
     row = await get_app_settings()
     return _to_dict(row)
 
 
 @router.put("")
-async def update_settings(body: SettingsUpdate, session: AsyncSession = Depends(get_session)):
+async def update_settings(
+    body: SettingsUpdate,
+    session: AsyncSession = Depends(get_session),
+    _principal=Depends(require_admin),
+):
     row = await _get_or_create_row(session)
     updates = body.model_dump(exclude_unset=True)
     for key, value in updates.items():

@@ -4,8 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentq.db.engine import get_session
 from agentq.db.models import AgentRun, ApprovalRequest, EvaluationResult, MonitoringEvent, Span, Violation
+from agentq.api.security import require_admin, require_viewer
 
-router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
+router = APIRouter(prefix="/api/monitoring", tags=["monitoring"], dependencies=[Depends(require_viewer)])
 
 
 def _run_dict(run: AgentRun) -> dict:
@@ -51,7 +52,11 @@ async def get_run(trace_id: str, session: AsyncSession = Depends(get_session)):
 
 
 @router.delete("/runs/{trace_id}")
-async def delete_run_data(trace_id: str, session: AsyncSession = Depends(get_session)):
+async def delete_run_data(
+    trace_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal=Depends(require_admin),
+):
     """Delete all monitoring data for one trace for privacy/retention workflows."""
     for model in (EvaluationResult, MonitoringEvent, ApprovalRequest, Violation, Span, AgentRun):
         await session.execute(delete(model).where(model.trace_id == trace_id))

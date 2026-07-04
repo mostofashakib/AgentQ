@@ -1,9 +1,12 @@
 from __future__ import annotations
 import json
+import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.models import BehaviorCluster, BehaviorAssignment, Span
 from agentq.config import settings
+
+logger = logging.getLogger(__name__)
 
 _SYSTEM = (
     "You are an AI observability analyst. Given summaries of agent traces that form a behavior cluster, "
@@ -59,6 +62,6 @@ async def generate_rubric(session: AsyncSession, cluster_id: str) -> None:
         cluster.name = data.get("name", cluster.name)
         cluster.description = "; ".join(data.get("criteria", []))
     except Exception:
-        pass  # rubric generation is best-effort
+        logger.exception("Rubric generation failed for behavior cluster %s", cluster_id)
 
     await session.commit()

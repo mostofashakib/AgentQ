@@ -4,31 +4,36 @@ import uuid
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from agentq.db.engine import get_session
 from agentq.db.models import AlertRule, AlertHistory
 from agentq.api.alerts import worker as alert_worker_module
+from agentq.api.security import require_admin, require_viewer
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 
 class AlertRuleBody(BaseModel):
     name: str
-    conditions: dict = {}
-    channels: list[dict] = []
+    conditions: dict = Field(default_factory=dict)
+    channels: list[dict] = Field(default_factory=list)
     frequency_limit: int = 0
     cooldown_minutes: int = 0
     enabled: bool = True
 
 
 @router.get("/rules")
-async def list_rules(session: AsyncSession = Depends(get_session)):
+async def list_rules(session: AsyncSession = Depends(get_session), _principal=Depends(require_viewer)):
     result = await session.execute(select(AlertRule).order_by(desc(AlertRule.created_at)))
     return [_rule_to_dict(r) for r in result.scalars().all()]
 
 
 @router.post("/rules")
-async def create_rule(body: AlertRuleBody, session: AsyncSession = Depends(get_session)):
+async def create_rule(
+    body: AlertRuleBody,
+    session: AsyncSession = Depends(get_session),
+    _principal=Depends(require_admin),
+):
     rule = AlertRule(
         id=str(uuid.uuid4()),
         name=body.name, conditions=body.conditions,
@@ -43,7 +48,12 @@ async def create_rule(body: AlertRuleBody, session: AsyncSession = Depends(get_s
 
 
 @router.put("/rules/{rule_id}")
-async def update_rule(rule_id: str, body: AlertRuleBody, session: AsyncSession = Depends(get_session)):
+async def update_rule(
+    rule_id: str,
+    body: AlertRuleBody,
+    session: AsyncSession = Depends(get_session),
+    _principal=Depends(require_admin),
+):
     result = await session.execute(select(AlertRule).where(AlertRule.id == rule_id))
     rule = result.scalars().first()
     if not rule:
@@ -60,7 +70,11 @@ async def update_rule(rule_id: str, body: AlertRuleBody, session: AsyncSession =
 
 
 @router.delete("/rules/{rule_id}")
-async def delete_rule(rule_id: str, session: AsyncSession = Depends(get_session)):
+async def delete_rule(
+    rule_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal=Depends(require_admin),
+):
     result = await session.execute(select(AlertRule).where(AlertRule.id == rule_id))
     rule = result.scalars().first()
     if not rule:
@@ -76,6 +90,7 @@ async def list_history(
     limit: int = Query(100, le=500),
     offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_session),
+    _principal=Depends(require_viewer),
 ):
     result = await session.execute(
         select(AlertHistory).order_by(desc(AlertHistory.fired_at)).offset(offset).limit(limit)
