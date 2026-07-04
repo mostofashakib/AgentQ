@@ -18,12 +18,11 @@ const EMPTY_FORM: Omit<AlertRule, 'id' | 'created_at'> = {
 }
 
 function conditionsToForm(conditions: Record<string, string>): { type: ConditionType; value: string; raw?: Record<string, string> } {
-  if (conditions.severity) return { type: 'severity', value: conditions.severity }
-  if (conditions.threat_class) return { type: 'threat_class', value: conditions.threat_class }
-  if (conditions && Object.keys(conditions).length > 0) {
-    return { type: 'unsupported', value: '', raw: conditions }
-  }
-  return { type: 'none', value: '' }
+  const keys = Object.keys(conditions ?? {})
+  if (keys.length === 0) return { type: 'none', value: '' }
+  if (keys.length === 1 && keys[0] === 'severity') return { type: 'severity', value: conditions.severity }
+  if (keys.length === 1 && keys[0] === 'threat_class') return { type: 'threat_class', value: conditions.threat_class }
+  return { type: 'unsupported', value: '', raw: conditions }
 }
 
 function formToConditions(type: ConditionType, value: string, rawConditions: Record<string, string> | null): Record<string, string> {
