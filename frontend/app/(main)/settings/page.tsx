@@ -26,6 +26,10 @@ export default function SettingsPage() {
   const [channelUrl, setChannelUrl] = useState('')
   const [channelTo, setChannelTo] = useState('')
   const [saved, setSaved] = useState(false)
+  const [llmProvider, setLlmProvider] = useState<'anthropic' | 'openai'>('anthropic')
+  const [llmModel, setLlmModel] = useState('')
+  const [llmApiKey, setLlmApiKey] = useState('')
+  const [llmKeySet, setLlmKeySet] = useState(false)
 
   useEffect(() => {
     api.settings.get().then(s => {
@@ -36,6 +40,9 @@ export default function SettingsPage() {
         setChannelUrl((c.url as string) ?? '')
         setChannelTo((c.to as string) ?? '')
       }
+      setLlmProvider((s.llm_provider as 'anthropic' | 'openai') ?? 'anthropic')
+      setLlmModel(s.llm_model ?? '')
+      setLlmKeySet(s.llm_api_key_set ?? false)
     }).catch(() => {})
   }, [])
 
@@ -56,6 +63,20 @@ export default function SettingsPage() {
     const channel = channelType === 'email' ? { type: 'email', to: channelTo } : { type: channelType, url: channelUrl }
     const updated = await api.settings.update({ default_alert_channel: channel })
     setThresholds(updated)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  async function saveLlmProvider() {
+    const body: Partial<AppSettings> & { llm_api_key?: string } = {
+      llm_provider: llmProvider,
+      llm_model: llmModel,
+    }
+    if (llmApiKey) body.llm_api_key = llmApiKey
+    const updated = await api.settings.update(body)
+    setThresholds(updated)
+    setLlmKeySet(updated.llm_api_key_set)
+    setLlmApiKey('')
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -127,6 +148,35 @@ export default function SettingsPage() {
             Save default channel
           </button>
           <p className="text-xs text-muted">Pre-fills new alert rules on the Alerts page.</p>
+        </div>
+      </div>
+
+      <div className="mb-8">
+        <p className="text-xs text-muted font-mono mb-3">LLM PROVIDER (BEHAVIOR RUBRIC GENERATION)</p>
+        <div className="rounded border border-border p-4 space-y-3">
+          <div className="flex gap-2">
+            <select value={llmProvider} onChange={e => setLlmProvider(e.target.value as 'anthropic' | 'openai')}
+              className="rounded border border-border bg-surface text-sm px-2 py-1.5 text-text focus:outline-none focus:border-cyan/60">
+              <option value="anthropic">Anthropic</option>
+              <option value="openai">OpenAI</option>
+            </select>
+            <input type="text" value={llmModel} onChange={e => setLlmModel(e.target.value)}
+              placeholder="e.g. claude-sonnet-4-6 or gpt-4o-mini"
+              className="flex-1 rounded border border-border bg-surface text-sm px-3 py-1.5 text-text focus:outline-none focus:border-cyan/60" />
+          </div>
+          <div>
+            <input type="password" value={llmApiKey} onChange={e => setLlmApiKey(e.target.value)}
+              placeholder={llmKeySet ? '•••• (already set — enter a new value to replace it)' : 'API key'}
+              className="w-full rounded border border-border bg-surface text-sm px-3 py-1.5 text-text focus:outline-none focus:border-cyan/60" />
+          </div>
+          <button onClick={saveLlmProvider}
+            className="text-xs font-mono px-3 py-1.5 rounded border border-cyan/40 text-cyan hover:bg-cyan/10 transition-colors">
+            Save LLM provider
+          </button>
+          <p className="text-xs text-muted">
+            This key is yours — AgentQ never uses a shared or bundled key. Behavior-cluster naming is
+            skipped until you add one; everything else works without it.
+          </p>
         </div>
       </div>
 

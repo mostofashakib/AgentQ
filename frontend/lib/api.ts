@@ -123,6 +123,9 @@ export interface AppSettings {
   infinite_loop_repeat_threshold: number
   behavior_similarity_threshold: number
   default_alert_channel: Record<string, unknown> | null
+  llm_provider: string
+  llm_model: string
+  llm_api_key_set: boolean
 }
 
 export interface MonitoringMetrics {
@@ -223,7 +226,7 @@ export const api = {
   settings: {
     get: (): Promise<AppSettings> =>
       fetch(`${API}/api/settings`).then(r => r.json()),
-    update: (body: Partial<AppSettings>): Promise<AppSettings> =>
+    update: (body: Partial<AppSettings> & { llm_api_key?: string }): Promise<AppSettings> =>
       fetch(`${API}/api/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
