@@ -60,6 +60,7 @@ generated_envs/*
 !generated_envs/.gitkeep
 forge.db
 agentq.db
+agentq_demo.db
 
 # local config
 .mcp.json

@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./agentq.db"
+    demo_database_url: str = "sqlite+aiosqlite:///./agentq_demo.db"
     demo_mode: bool = False
     judge_model: str = "claude-sonnet-4-6"
     anthropic_api_key: str = ""
