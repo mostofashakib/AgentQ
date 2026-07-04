@@ -399,7 +399,7 @@ async def test_scenario_intercept_allows_safe_tool(client):
 
 
 async def test_scenario_intercept_detects_send_email(client):
-    """send_email triggers a high-risk violation but is still allowed (observability only)."""
+    """send_email is held until a human approves the side effect."""
     r = await client.post("/api/intercept", json={
         "trace_id": "e2e-intercept-003",
         "span_id": "pre-003",
@@ -408,7 +408,9 @@ async def test_scenario_intercept_detects_send_email(client):
     })
     assert r.status_code == 200
     data = r.json()
-    assert data["allowed"] is True
+    assert data["allowed"] is False
+    assert data["status"] == "requires_human_review"
+    assert data["approval_request_id"]
     assert len(data["violations"]) > 0
 
 

@@ -125,6 +125,35 @@ export interface AppSettings {
   default_alert_channel: Record<string, unknown> | null
 }
 
+export interface MonitoringMetrics {
+  run_volume: number
+  success_rate: number
+  error_rate: number
+  average_latency_ms: number
+  p95_latency_ms: number
+  total_tokens: number
+  estimated_cost_usd: number
+  tool_success_rate: number
+  error_count: number
+  evaluation_counts: Record<string, number>
+  event_counts: Record<string, number>
+}
+
+export interface AgentRun {
+  trace_id: string
+  agent_run_id: string
+  session_id: string | null
+  agent_type: string
+  environment: string
+  status: string
+  total_latency_ms: number
+  input_tokens: number
+  output_tokens: number
+  estimated_cost_usd: number
+  tool_call_count: number
+  error_count: number
+}
+
 export const api = {
   traces: {
     list: (params?: { limit?: number; service?: string }) =>
@@ -200,6 +229,12 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }).then(r => r.json()),
+  },
+  monitoring: {
+    metrics: (): Promise<MonitoringMetrics> =>
+      fetch(`${API}/api/monitoring/metrics`).then(r => r.json()),
+    runs: (): Promise<AgentRun[]> =>
+      fetch(`${API}/api/monitoring/runs`).then(r => r.json()),
   },
   streamUrl: () => `${API}/api/stream`,
 }

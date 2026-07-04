@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 import uuid
 
-from sqlalchemy import BigInteger, Boolean, Float, Integer, JSON, String
+from sqlalchemy import BigInteger, Boolean, Float, Integer, JSON, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from pydantic import BaseModel, Field
 
@@ -32,6 +32,79 @@ class Span(Base):
     gen_ai_output_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     gen_ai_tool_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     attributes: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
+class AgentRun(Base):
+    __tablename__ = "agent_runs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    agent_run_id: Mapped[str] = mapped_column(String, unique=True, index=True)
+    trace_id: Mapped[str] = mapped_column(String, unique=True, index=True)
+    session_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    agent_type: Mapped[str] = mapped_column(String, default="unknown", index=True)
+    environment: Mapped[str] = mapped_column(String, default="local", index=True)
+    status: Mapped[str] = mapped_column(String, default="success", index=True)
+    started_at_unix_nano: Mapped[int] = mapped_column(BigInteger, default=0)
+    ended_at_unix_nano: Mapped[int] = mapped_column(BigInteger, default=0)
+    total_latency_ms: Mapped[float] = mapped_column(Float, default=0.0)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    estimated_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    error_count: Mapped[int] = mapped_column(Integer, default=0)
+    error_types: Mapped[list] = mapped_column(JSON, default=list)
+    model_call_count: Mapped[int] = mapped_column(Integer, default=0)
+    tool_call_count: Mapped[int] = mapped_column(Integer, default=0)
+    tool_success_count: Mapped[int] = mapped_column(Integer, default=0)
+    tool_failure_count: Mapped[int] = mapped_column(Integer, default=0)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    step_count: Mapped[int] = mapped_column(Integer, default=0)
+    terminal_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class EvaluationResult(Base):
+    __tablename__ = "evaluation_results"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    trace_id: Mapped[str] = mapped_column(String, index=True)
+    agent_run_id: Mapped[str] = mapped_column(String, index=True)
+    evaluator: Mapped[str] = mapped_column(String, index=True)
+    status: Mapped[str] = mapped_column(String, index=True)
+    score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
+class MonitoringEvent(Base):
+    __tablename__ = "monitoring_events"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    trace_id: Mapped[str] = mapped_column(String, index=True)
+    agent_run_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    span_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    event_type: Mapped[str] = mapped_column(String, index=True)
+    category: Mapped[str] = mapped_column(String, index=True)
+    severity: Mapped[str] = mapped_column(String, index=True)
+    reason: Mapped[str] = mapped_column(Text)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+
+
+class ApprovalRequest(Base):
+    __tablename__ = "approval_requests"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    trace_id: Mapped[str] = mapped_column(String, index=True)
+    agent_run_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    span_id: Mapped[str] = mapped_column(String, index=True)
+    tool_name: Mapped[str] = mapped_column(String, index=True)
+    context: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String, default="pending", index=True)
+    reviewer_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    decided_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
 

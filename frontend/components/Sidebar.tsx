@@ -1,11 +1,12 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Activity, AlertTriangle, Bell, GitBranch, Layers, Plug, Radio, Settings } from 'lucide-react'
+import { Activity, AlertTriangle, Bell, Gauge, GitBranch, Layers, Plug, Radio, Settings } from 'lucide-react'
 
 const nav = [
   { href: '/connect', label: 'Connect Agent', icon: Plug },
   { href: '/traces', label: 'Live Traces', icon: Radio },
+  { href: '/monitoring', label: 'Run Health', icon: Gauge },
   { href: '/violations', label: 'Violations', icon: AlertTriangle },
   { href: '/behaviors', label: 'Behaviors', icon: Layers },
   { href: '/alerts', label: 'Alerts', icon: Bell },

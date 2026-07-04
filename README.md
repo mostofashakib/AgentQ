@@ -12,7 +12,7 @@ AgentQ sits between your AI agents and production. It ingests OpenTelemetry span
 |---|---|
 | **Span Ingestion** | Drop-in OTel/MCP receiver — no SDK changes required |
 | **21 Guardrail Rules** | Detects injection, scope creep, data exfiltration, behavioral anomalies, and integrity violations in real time |
-| **Tool Execution Interceptor** | Pre-execution hook: observe guardrail hits before a tool fires, without blocking the agent |
+| **Tool Execution Interceptor** | Pre-execution policy, circuit-breaker, and human-approval enforcement |
 | **Behavior Clustering** | Groups traces by composite embedding similarity; auto-generates LLM rubrics at 10 traces per cluster |
 | **Multi-Channel Alerts** | Fires webhook, Slack, or email when a rule matches — with per-rule rate limiting and cooldown |
 | **Live Dashboard** | SSE-driven trace feed, waterfall timeline, DAG viewer, episode replay, violation dashboard, service graph |
@@ -193,8 +193,8 @@ resp = httpx.post("http://localhost:8000/api/intercept", json={
     "tool_name": "send_email",
     "attributes": {"agentq.user_confirmed": False}
 })
-# always allowed=true; inspect violations before executing
-violations = resp.json()["violations"]
+# Execute only when allowed=true. Pending approvals and policy blocks return allowed=false.
+decision = resp.json()
 ```
 
 **MCP server:** AgentQ is itself reachable as an MCP server at `http://localhost:8000/mcp`, exposing 3 tools for any MCP client (Claude Desktop, a custom agent, etc.):
@@ -255,10 +255,45 @@ Per-rule controls: `frequency_limit` (max fires/hour) and `cooldown_minutes` (mi
 
 ---
 
+## Agent Monitoring
+
+Every ingested trace produces an `AgentRun` record keyed by `trace_id` and a stable `agent_run_id`. A producer can attach `session.id` or `agentq.session_id`. Parent span IDs remain unchanged, including across queued workers, so the waterfall reconstructs the original execution timeline.
+
+Run aggregation records total and per-span latency, input/output tokens, model and tool counts, failures, retries, estimated provider cost, agent type, environment, and terminal status. `/api/monitoring/metrics` exports aggregate run volume, success/error rates, average and p95 latency, tokens, cost, tool success, evaluations, and safety events. The **Run Health** dashboard displays these signals.
+
+Stored span attributes are sanitized inside the application process. Prompt and output content is omitted by default. Enabling raw content requires an explicit flag and is still disabled in production; passwords, credentials, tokens, cookies, email addresses, phone numbers, payment data, and government IDs are recursively redacted. Hidden reasoning is never required or stored.
+
+The pre-execution interceptor enforces configurable limits for steps, model calls, tool calls, retries, runtime, tokens, cost, and repeated tool calls. Unauthorized calls are blocked. Configured side-effect tools create a pending approval request; retry the same intercept after an authorized reviewer approves it through `/api/approvals/{id}/decision`.
+
+Five deterministic quality results are attached to runs: faithfulness, relevancy, completeness, hallucination risk, and policy adherence. Missing producer signals return `warn` instead of inventing a score. Anomaly records flag latency, cost, output size, repeated failures, and retries. Monitoring records are retained for `TELEMETRY_RETENTION_DAYS` and pruned on startup.
+
+To debug a failed run, open its trace in the dashboard or call `GET /api/monitoring/runs/{trace_id}`. The response combines run metrics, evaluation reasons, anomalies, security events, circuit-breaker reasons, and approval decisions. Then inspect `GET /api/traces/{trace_id}/waterfall` for the exact failing child span.
+
 ## Environment Variables
 
 ```env
 DATABASE_URL=sqlite+aiosqlite:///./agentq.db
+ENVIRONMENT=local
+TRACING_ENABLED=true
+TRACE_SAMPLING_RATE=1.0
+RAW_PROMPT_LOGGING_ENABLED=false
+RAW_OUTPUT_LOGGING_ENABLED=false
+STRUCTURED_LOGGING_ENABLED=true
+TELEMETRY_RETENTION_DAYS=30
+
+# Circuit breakers and anomaly thresholds
+MAX_AGENT_STEPS=50
+MAX_MODEL_CALLS=20
+MAX_TOOL_CALLS=30
+MAX_RETRIES=5
+MAX_RUNTIME_SECONDS=300
+MAX_TOKENS_PER_RUN=100000
+MAX_COST_USD_PER_RUN=10
+MAX_SIMILAR_TOOL_CALLS=5
+UNUSUAL_COST_USD=5
+UNUSUAL_LATENCY_MS=30000
+UNUSUAL_OUTPUT_TOKENS=8000
+APPROVAL_REQUIRED_TOOLS=send_email,delete,delete_file,drop_table,update_production,make_purchase,publish,change_permissions,privileged_exec
 
 # Demo mode — seeds realistic sample data on startup
 DEMO_MODE=false
@@ -293,7 +328,14 @@ SMTP_TO=
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/v1/traces` | Ingest OTLP/HTTP JSON spans |
-| `POST` | `/api/intercept` | Pre-execution tool observation (always `allowed: true`) |
+| `POST` | `/api/intercept` | Enforce pre-execution policy, limits, and approvals |
+| `GET` | `/api/monitoring/runs` | Filterable run records |
+| `GET` | `/api/monitoring/runs/{trace_id}` | Run metrics, evaluations, and safety events |
+| `DELETE` | `/api/monitoring/runs/{trace_id}` | Delete all retained monitoring data for a trace |
+| `GET` | `/api/monitoring/metrics` | Aggregate health, latency, cost, and quality metrics |
+| `GET` | `/api/monitoring/events` | Security, anomaly, approval, and circuit-breaker events |
+| `GET` | `/api/approvals` | List approval requests |
+| `POST` | `/api/approvals/{id}/decision` | Approve or reject a high-risk action |
 | `GET` | `/api/traces` | List spans (limit, offset, service filter) |
 | `GET` | `/api/traces/{trace_id}` | All spans for a trace |
 | `GET` | `/api/traces/{trace_id}/waterfall` | Depth-indented span tree |
