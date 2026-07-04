@@ -14,6 +14,7 @@ from agentq.api.routes import settings as settings_route
 from agentq.api.routes import report as report_route
 from agentq.api.routes import monitoring as monitoring_route
 from agentq.api.routes import approvals as approvals_route
+from agentq.api.routes import product_analytics as product_analytics_route
 from agentq.ingest.receiver import router as ingest_router
 from agentq.api.worker import guardrail_worker
 from agentq.behaviors.worker import behavior_worker
@@ -76,6 +77,7 @@ app.include_router(settings_route.router)
 app.include_router(report_route.router)
 app.include_router(monitoring_route.router)
 app.include_router(approvals_route.router)
+app.include_router(product_analytics_route.router)
 
 app.mount("/mcp", MCPAuthMiddleware(mcp_app))
 

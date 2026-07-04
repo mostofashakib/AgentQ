@@ -93,6 +93,21 @@ class MonitoringEvent(Base):
     created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
 
+class ProductEvent(Base):
+    """Privacy-safe product usage event; raw user content is never stored."""
+
+    __tablename__ = "product_events"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    feature: Mapped[str] = mapped_column(String, index=True)
+    action: Mapped[str] = mapped_column(String, index=True)
+    user_id_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    session_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    trace_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now, index=True)
+
+
 class ApprovalRequest(Base):
     __tablename__ = "approval_requests"
 

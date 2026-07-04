@@ -286,6 +286,25 @@ Run aggregation records total and per-span latency, input/output tokens, model a
 
 Stored span attributes are sanitized inside the application process. Prompt and output content is omitted by default. Enabling raw content requires an explicit flag and is still disabled in production; passwords, credentials, tokens, cookies, email addresses, phone numbers, payment data, and government IDs are recursively redacted. Hidden reasoning is never required or stored.
 
+### Product usage tracking
+
+`ProductEventTracker` records explicit feature outcomes without recording clicks,
+keystrokes, prompts, outputs, or other raw user content. Producers send a feature
+name and one of: `viewed`, `started`, `completed`, `failed`, `abandoned`,
+`feedback_positive`, or `feedback_negative`. Optional metadata is redacted before
+storage and limited to 16 KiB.
+
+`POST /api/product-analytics/events` accepts events with ingest access. Clients can
+opt out per request with `X-AgentQ-Tracking-Opt-Out: true`. Tracking can also be
+disabled globally with `PRODUCT_ANALYTICS_ENABLED=false`. `GET
+/api/product-analytics/features` requires viewer access and reports adoption,
+completion, failure, abandonment, repeat use, and feedback counts by feature.
+
+Raw user IDs are never stored. If `PRODUCT_ANALYTICS_IDENTITY_SALT` contains a
+private random value, IDs are correlated using HMAC-SHA256; when it is blank, all
+events remain anonymous. Product events use their own
+`PRODUCT_ANALYTICS_RETENTION_DAYS` retention window, which defaults to 90 days.
+
 The pre-execution interceptor enforces configurable limits for steps, model calls, tool calls, retries, runtime, tokens, cost, and repeated tool calls. Unauthorized calls are blocked. Configured side-effect tools create a pending approval request; retry the same intercept after an authorized reviewer approves it through `/api/approvals/{id}/decision`.
 
 Five deterministic quality results are attached to runs: faithfulness, relevancy, completeness, hallucination risk, and policy adherence. Missing producer signals return `warn` instead of inventing a score. Anomaly records flag latency, cost, output size, repeated failures, and retries. Monitoring records are retained for `TELEMETRY_RETENTION_DAYS` and pruned on startup.

@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     ingest_api_key: str = ""
     cors_allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     telemetry_retention_days: int = 30
+    product_analytics_enabled: bool = True
+    product_analytics_identity_salt: str = ""
+    product_analytics_retention_days: int = 90
     max_agent_steps: int = 50
     max_model_calls: int = 20
     max_tool_calls: int = 30
