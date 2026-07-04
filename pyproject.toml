@@ -1,7 +1,7 @@
 [project]
 name = "agentq"
 version = "0.1.0"
-description = "AI Agent Reliability, Evaluation, and Observability control plane"
+description = "AI Agent Reliability, Evaluation, and Observability platform"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",

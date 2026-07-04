@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 
-export const metadata: Metadata = { title: 'AgentQ Control Plane' }
+export const metadata: Metadata = { title: 'AgentQ' }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

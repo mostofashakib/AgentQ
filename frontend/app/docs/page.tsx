@@ -343,7 +343,7 @@ export default function DocsPage() {
               </span>
             </h1>
             <p style={{ fontSize: 17, color: BODY, lineHeight: 1.75, maxWidth: 580, margin: 0 }}>
-              Reliability, evaluation &amp; observability control plane for AI agents — from OTLP ingest to real-time guardrails and eval scoring.
+              Reliability, evaluation &amp; observability platform for AI agents — from OTLP ingest to real-time guardrails and eval scoring.
             </p>
           </div>
 

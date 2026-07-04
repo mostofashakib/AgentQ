@@ -20,7 +20,7 @@ export function Sidebar() {
           <Activity size={18} className="text-cyan" />
           <span className="text-sm font-semibold tracking-widest text-cyan font-mono">AGENTQ</span>
         </div>
-        <p className="text-xs text-muted mt-1">Control Plane</p>
+        <p className="text-xs text-muted mt-1">Observability Platform</p>
       </Link>
       <nav className="flex-1 p-3 space-y-1">
         {nav.map(({ href, label, icon: Icon }) => {
