@@ -129,6 +129,29 @@ Demo endpoints (`POST /api/demo/seed`, `POST /api/demo/reset`) are only mounted 
 
 ---
 
+## Deploying with Docker
+
+```bash
+git clone <repo-url> agentq
+cd agentq
+cp .env.example .env
+```
+
+Edit `.env` and set:
+- `ADMIN_API_KEY`, `VIEWER_API_KEY`, `INGEST_API_KEY` — generate each with `openssl rand -hex 32`. Required: the container defaults to `ENVIRONMENT=production`, which rejects all requests until these are set.
+- `NEXT_PUBLIC_API_KEY` — the same value as `ADMIN_API_KEY`, so the dashboard itself can reach every endpoint. This is baked into the frontend at build time (rebuild with `docker compose build frontend` if you change it later).
+- `ANTHROPIC_API_KEY` (or configure a provider later via the Settings page) — optional, entirely your own key and cost. Rubric generation is skipped without one; nothing else is affected.
+
+```bash
+docker compose up --build
+```
+
+Backend: `http://localhost:8000` (`/health`, `/docs`). Dashboard: `http://localhost:3000`. The SQLite database persists in a named Docker volume across restarts.
+
+To run without auth (e.g. testing on a private LAN only), override `ENVIRONMENT: local` for the `backend` service in `docker-compose.yml`.
+
+---
+
 ## Connecting an Agent
 
 AgentQ speaks **AOP/1** — the AgentQ Observability Protocol: OTLP/HTTP spans (JSON or protobuf), `service.name` as agent identity (no registration step), OTel GenAI semantic conventions as the action schema, automatic MCP normalization, and a pre-execution intercept hook. Conformance checklist: `service.name`, `trace_id`/`span_id`, `gen_ai.system` + `gen_ai.operation.name` on CLIENT spans, and actual prompt/completion/tool I/O content (metadata-only spans pass ingestion but give content-scanning guardrails nothing to inspect).
@@ -237,7 +260,7 @@ Every completed trace is embedded using a composite vector (0.4 × structural op
 
 - **New cluster** — created when similarity falls below `BEHAVIOR_SIMILARITY_THRESHOLD` (default 0.82)
 - **Existing cluster** — centroid updated as a running average; trace assigned
-- **Rubric generation** — auto-triggered when a cluster reaches 10 traces; calls Anthropic to produce 3–5 classification criteria and a short cluster name
+- **Rubric generation** — auto-triggered when a cluster reaches 10 traces; calls your configured LLM provider to produce 3–5 classification criteria and a short cluster name. Bring-your-own-key: set a provider and API key via the Settings page, or `ANTHROPIC_API_KEY`/`JUDGE_MODEL` in `.env`. AgentQ never holds or uses its own LLM key — without one configured, cluster naming is skipped with a visible status message; clustering itself (which doesn't require an LLM call) is unaffected.
 
 ---
 
@@ -281,12 +304,21 @@ RAW_OUTPUT_LOGGING_ENABLED=false
 STRUCTURED_LOGGING_ENABLED=true
 TELEMETRY_RETENTION_DAYS=30
 
-# API security; authentication defaults on outside local development
+# API security — fail-closed by default: required whenever ENVIRONMENT is
+# not "local" (the Docker deployment sets ENVIRONMENT=production). With auth
+# required and no keys configured, every request is rejected — set at least
+# one of these. This gate covers every route: the dashboard read endpoints,
+# the /mcp mount, and the simple report/intercept endpoints.
 # API_AUTH_ENABLED=true  # optional locally; defaults to true outside local
 VIEWER_API_KEY=
 ADMIN_API_KEY=
 INGEST_API_KEY=
 CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+
+# Rate limiting — in-memory, per-process, keyed by API key (or client IP
+# when auth is disabled). Single self-hosted instance only; does not
+# synchronize across multiple replicas.
+RATE_LIMIT_PER_MINUTE=120
 
 # Circuit breakers and anomaly thresholds
 MAX_AGENT_STEPS=50
