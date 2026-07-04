@@ -1,4 +1,16 @@
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY ?? ''
+
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  return { 'X-AgentQ-API-Key': API_KEY, ...extra }
+}
+
+function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(`${API}${path}`, {
+    ...init,
+    headers: authHeaders(init.headers as Record<string, string> | undefined),
+  })
+}
 
 export interface Span {
   id: string
@@ -157,12 +169,63 @@ export interface AgentRun {
   error_count: number
 }
 
+export function subscribeToStream(
+  onEvent: (event: { type: string; data: Record<string, unknown> }) => void,
+  onStatusChange: (live: boolean) => void,
+): () => void {
+  let stopped = false
+  const controller = new AbortController()
+
+  async function connect() {
+    while (!stopped) {
+      try {
+        const res = await fetch(`${API}/api/stream`, {
+          headers: authHeaders({ Accept: 'text/event-stream' }),
+          signal: controller.signal,
+        })
+        if (!res.ok || !res.body) throw new Error(`stream failed: ${res.status}`)
+        onStatusChange(true)
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        while (!stopped) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          const parts = buffer.split('\n\n')
+          buffer = parts.pop() ?? ''
+          for (const part of parts) {
+            const line = part.split('\n').find(l => l.startsWith('data: '))
+            if (!line) continue
+            try {
+              onEvent(JSON.parse(line.slice(6)))
+            } catch {
+              // ignore malformed event payloads
+            }
+          }
+        }
+      } catch {
+        // connection failed or stream ended — fall through to retry below
+      }
+      if (stopped) break
+      onStatusChange(false)
+      await new Promise(resolve => setTimeout(resolve, 2000))
+    }
+  }
+
+  connect()
+  return () => {
+    stopped = true
+    controller.abort()
+  }
+}
+
 export const api = {
   traces: {
     list: (params?: { limit?: number; service?: string }) =>
-      fetch(`${API}/api/traces?limit=${params?.limit ?? 50}${params?.service ? `&service=${params.service}` : ''}`).then(r => r.json() as Promise<Span[]>),
+      apiFetch(`/api/traces?limit=${params?.limit ?? 50}${params?.service ? `&service=${params.service}` : ''}`).then(r => r.json() as Promise<Span[]>),
     get: (traceId: string) =>
-      fetch(`${API}/api/traces/${traceId}`).then(r => r.json() as Promise<Span[]>),
+      apiFetch(`/api/traces/${traceId}`).then(r => r.json() as Promise<Span[]>),
   },
   violations: {
     list: (params?: { limit?: number; threat_class?: string; severity?: string }) => {
@@ -170,64 +233,64 @@ export const api = {
       if (params?.limit) q.set('limit', String(params.limit))
       if (params?.threat_class) q.set('threat_class', params.threat_class)
       if (params?.severity) q.set('severity', params.severity)
-      return fetch(`${API}/api/violations?${q}`).then(r => r.json() as Promise<Violation[]>)
+      return apiFetch(`/api/violations?${q}`).then(r => r.json() as Promise<Violation[]>)
     },
   },
   waterfall: {
     get: (traceId: string) =>
-      fetch(`${API}/api/traces/${traceId}/waterfall`).then(r => r.json() as Promise<WaterfallNode[]>),
+      apiFetch(`/api/traces/${traceId}/waterfall`).then(r => r.json() as Promise<WaterfallNode[]>),
   },
   graph: {
     get: () =>
-      fetch(`${API}/api/graph`).then(r => r.json() as Promise<ServiceGraph>),
+      apiFetch(`/api/graph`).then(r => r.json() as Promise<ServiceGraph>),
   },
   behaviors: {
     list: () =>
-      fetch(`${API}/api/behaviors`).then(r => r.json() as Promise<BehaviorCluster[]>),
+      apiFetch(`/api/behaviors`).then(r => r.json() as Promise<BehaviorCluster[]>),
     get: (id: string) =>
-      fetch(`${API}/api/behaviors/${id}`).then(r => r.json()),
+      apiFetch(`/api/behaviors/${id}`).then(r => r.json()),
     generateRubric: (id: string) =>
-      fetch(`${API}/api/behaviors/${id}/rubric`, { method: 'POST' }).then(r => r.json()),
+      apiFetch(`/api/behaviors/${id}/rubric`, { method: 'POST' }).then(r => r.json()),
     traces: (id: string, params?: { limit?: number }) => {
       const q = new URLSearchParams()
       if (params?.limit) q.set('limit', String(params.limit))
-      return fetch(`${API}/api/behaviors/${id}/traces?${q}`)
+      return apiFetch(`/api/behaviors/${id}/traces?${q}`)
         .then(r => r.json() as Promise<BehaviorTrace[]>)
     },
   },
   alerts: {
     rules: {
       list: (): Promise<AlertRule[]> =>
-        fetch(`${API}/api/alerts/rules`).then(r => r.json()),
+        apiFetch(`/api/alerts/rules`).then(r => r.json()),
       create: (body: Omit<AlertRule, 'id' | 'created_at'>): Promise<AlertRule> =>
-        fetch(`${API}/api/alerts/rules`, {
+        apiFetch(`/api/alerts/rules`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         }).then(r => r.json()),
       update: (id: string, body: Omit<AlertRule, 'id' | 'created_at'>): Promise<AlertRule> =>
-        fetch(`${API}/api/alerts/rules/${id}`, {
+        apiFetch(`/api/alerts/rules/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         }).then(r => r.json()),
       delete: (id: string): Promise<{ deleted: string }> =>
-        fetch(`${API}/api/alerts/rules/${id}`, { method: 'DELETE' }).then(r => r.json()),
+        apiFetch(`/api/alerts/rules/${id}`, { method: 'DELETE' }).then(r => r.json()),
     },
     history: {
       list: (limit = 100): Promise<AlertHistory[]> =>
-        fetch(`${API}/api/alerts/history?limit=${limit}`).then(r => r.json()),
+        apiFetch(`/api/alerts/history?limit=${limit}`).then(r => r.json()),
     },
   },
   agents: {
     list: (): Promise<Agent[]> =>
-      fetch(`${API}/api/agents`).then(r => r.json()),
+      apiFetch(`/api/agents`).then(r => r.json()),
   },
   settings: {
     get: (): Promise<AppSettings> =>
-      fetch(`${API}/api/settings`).then(r => r.json()),
+      apiFetch(`/api/settings`).then(r => r.json()),
     update: (body: Partial<AppSettings> & { llm_api_key?: string }): Promise<AppSettings> =>
-      fetch(`${API}/api/settings`, {
+      apiFetch(`/api/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -235,9 +298,8 @@ export const api = {
   },
   monitoring: {
     metrics: (): Promise<MonitoringMetrics> =>
-      fetch(`${API}/api/monitoring/metrics`).then(r => r.json()),
+      apiFetch(`/api/monitoring/metrics`).then(r => r.json()),
     runs: (): Promise<AgentRun[]> =>
-      fetch(`${API}/api/monitoring/runs`).then(r => r.json()),
+      apiFetch(`/api/monitoring/runs`).then(r => r.json()),
   },
-  streamUrl: () => `${API}/api/stream`,
 }

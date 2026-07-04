@@ -1,7 +1,7 @@
 'use client'
 import { Suspense, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { api, type Span } from '@/lib/api'
+import { api, subscribeToStream, type Span } from '@/lib/api'
 import { KindBadge } from '@/components/StatusBadge'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -20,12 +20,8 @@ function TracesContent() {
   }, [service])
 
   useEffect(() => {
-    const es = new EventSource(api.streamUrl())
-    es.onopen = () => setLive(true)
-    es.onerror = () => setLive(false)
-    es.onmessage = (e) => {
-      try {
-        const event: LiveEvent = JSON.parse(e.data)
+    const unsubscribe = subscribeToStream(
+      (event: LiveEvent) => {
         if (event.type === 'span') {
           const s = event.data as unknown as Span
           setSpans(prev => [s, ...prev].slice(0, 200))
@@ -33,9 +29,10 @@ function TracesContent() {
             setAlertCount(n => n + 1)
           }
         }
-      } catch {}
-    }
-    return () => es.close()
+      },
+      setLive,
+    )
+    return unsubscribe
   }, [])
 
   return (
