@@ -1,6 +1,30 @@
+import pytest
+from contextlib import AsyncExitStack
 from httpx import AsyncClient, ASGITransport
 
-from agentq.api.app import app
+from agentq.api.app import app, mcp_app
+
+
+@pytest.fixture(scope="module", autouse=True)
+async def _mcp_session_manager():
+    """Initialize mcp_app's lifespan once per module to satisfy FastMCP's single-run requirement.
+
+    This is scoped to this module only, not the entire test suite, since only these tests
+    interact with /mcp. The exit is suppressed due to pytest-asyncio's task context handling.
+    """
+    stack = AsyncExitStack()
+    await stack.__aenter__()
+    await stack.enter_async_context(mcp_app.router.lifespan_context(mcp_app))
+
+    try:
+        yield
+    finally:
+        # Suppress exit errors from pytest-asyncio running exit in a different task context.
+        # The stack will be cleaned up when the process exits.
+        try:
+            await stack.__aexit__(None, None, None)
+        except RuntimeError:
+            pass
 
 
 async def test_mcp_mount_rejects_missing_api_key(monkeypatch):
