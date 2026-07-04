@@ -8,12 +8,34 @@ database so that:
      created, even though the FastAPI lifespan also calls create_tables().
 """
 import pytest
+from contextlib import AsyncExitStack
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 import agentq.db.engine as db_engine_module
 from agentq.db.models import Base
 from agentq.guardrails import settings as guardrail_settings
 from agentq.api import rate_limit
+
+
+# Track whether the app's lifespan has been initialized in this session
+_app_lifespan_initialized = False
+_app_lifespan_stack = None
+
+
+@pytest.fixture(autouse=True, scope="session")
+async def _initialize_app_lifespan():
+    """Initialize the app's lifespan once per test session."""
+    global _app_lifespan_initialized, _app_lifespan_stack
+
+    if not _app_lifespan_initialized:
+        from agentq.api.app import app as main_app
+
+        _app_lifespan_stack = AsyncExitStack()
+        await _app_lifespan_stack.__aenter__()
+        await _app_lifespan_stack.enter_async_context(main_app.router.lifespan_context(main_app))
+        _app_lifespan_initialized = True
+
+    yield
 
 
 @pytest.fixture(autouse=True, scope="function")

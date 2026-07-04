@@ -9,7 +9,7 @@ async def test_mcp_mount_rejects_missing_api_key(monkeypatch):
     monkeypatch.setattr(security.settings, "api_auth_enabled", True)
     monkeypatch.setattr(security.settings, "admin_api_key", "admin-secret")
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True) as client:
         response = await client.post("/mcp", json={})
 
     assert response.status_code == 401
@@ -21,7 +21,7 @@ async def test_mcp_mount_accepts_any_valid_key_tier(monkeypatch):
     monkeypatch.setattr(security.settings, "api_auth_enabled", True)
     monkeypatch.setattr(security.settings, "ingest_api_key", "ingest-secret")
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True) as client:
         response = await client.post(
             "/mcp", json={}, headers={"X-AgentQ-API-Key": "ingest-secret"},
         )
@@ -37,7 +37,7 @@ async def test_mcp_mount_open_when_auth_not_required(monkeypatch):
 
     monkeypatch.setattr(security.settings, "api_auth_enabled", False)
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", follow_redirects=True) as client:
         response = await client.post("/mcp", json={})
 
     assert response.status_code != 401
