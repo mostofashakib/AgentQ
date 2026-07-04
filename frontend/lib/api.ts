@@ -124,9 +124,18 @@ export interface AlertHistory {
 export interface Agent {
   service_name: string
   span_count: number
-  first_seen: string
-  last_seen: string
+  first_seen: string | null
+  last_seen: string | null
   violation_count: number
+  capture_traces: boolean
+  analyze_behavior: boolean
+}
+
+export interface AgentConnection {
+  service_name: string
+  capture_traces: boolean
+  analyze_behavior: boolean
+  connection_token: string
 }
 
 export interface AppSettings {
@@ -138,6 +147,7 @@ export interface AppSettings {
   llm_provider: string
   llm_model: string
   llm_api_key_set: boolean
+  llm_base_url: string | null
 }
 
 export interface MonitoringMetrics {
@@ -285,6 +295,12 @@ export const api = {
   agents: {
     list: (): Promise<Agent[]> =>
       apiFetch(`/api/agents`).then(r => r.json()),
+    connect: (body: { service_name: string; capture_traces: boolean }): Promise<AgentConnection> =>
+      apiFetch(`/api/agents`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      }).then(r => r.json()),
+    disconnect: (serviceName: string) =>
+      apiFetch(`/api/agents/${encodeURIComponent(serviceName)}`, { method: 'DELETE' }).then(r => r.json()),
   },
   settings: {
     get: (): Promise<AppSettings> =>

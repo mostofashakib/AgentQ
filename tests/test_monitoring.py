@@ -16,8 +16,9 @@ from agentq.monitoring.runs import circuit_breaker_reason
 
 
 @pytest.fixture
-async def client():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as value:
+async def client(connected_agent_factory):
+    token = await connected_agent_factory("agent-a")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"X-AgentQ-Agent-Token": token}) as value:
         yield value
 
 
@@ -104,6 +105,7 @@ async def test_full_run_metrics_and_approval_flow(client):
 
     held = (await client.post("/api/intercept", json={
         "trace_id": "full-run", "span_id": "email-1", "tool_name": "send_email",
+        "service_name": "agent-a",
         "attributes": {"recipient": "private@example.com"},
     })).json()
     assert held["allowed"] is False
@@ -114,6 +116,7 @@ async def test_full_run_metrics_and_approval_flow(client):
     assert approved["status"] == "approved"
     retry = (await client.post("/api/intercept", json={
         "trace_id": "full-run", "span_id": "email-1", "tool_name": "send_email",
+        "service_name": "agent-a",
     })).json()
     assert retry["allowed"] is True
 

@@ -50,13 +50,17 @@ async def generate_rubric(session: AsyncSession, cluster_id: str) -> None:
     prompt = "Trace summaries:\n" + "\n".join(f"- {s}" for s in summaries)
 
     app_settings = await get_app_settings()
-    if not app_settings.llm_api_key:
+    if not app_settings.llm_api_key and app_settings.llm_provider != "local":
         cluster.description = "Rubric generation skipped — no LLM API key configured. Add one in Settings."
         await session.commit()
         return
 
     try:
-        client = build_client(app_settings.llm_provider, app_settings.llm_api_key)
+        client = build_client(
+            app_settings.llm_provider,
+            app_settings.llm_api_key or "",
+            app_settings.llm_base_url,
+        )
         text = await client.complete(_SYSTEM, prompt, app_settings.llm_model)
         data = json.loads(text)
         cluster.rubric = data.get("criteria", [])

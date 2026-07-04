@@ -67,3 +67,16 @@ async def test_openai_client_complete_returns_text(monkeypatch):
     client = OpenAIClient("fake-key")
     result = await client.complete("system", "prompt", "gpt-4o-mini")
     assert result == "hello from openai"
+
+
+def test_openai_compatible_provider_defaults():
+    from agentq.behaviors.llm_client import build_client, OpenAIClient
+
+    openrouter = build_client("openrouter", "key")
+    huggingface = build_client("huggingface", "key")
+    local = build_client("local", "", "http://localhost:11434/v1")
+
+    assert isinstance(openrouter, OpenAIClient)
+    assert openrouter.base_url == "https://openrouter.ai/api/v1"
+    assert huggingface.base_url == "https://router.huggingface.co/v1"
+    assert local.base_url == "http://localhost:11434/v1"

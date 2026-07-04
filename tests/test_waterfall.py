@@ -35,8 +35,9 @@ PARENT_CHILD_PAYLOAD = {
 }
 
 
-async def test_waterfall_returns_tree_structure():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+async def test_waterfall_returns_tree_structure(connected_agent_factory):
+    token = await connected_agent_factory("agent")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"X-AgentQ-Agent-Token": token}) as client:
         ingest = await client.post("/v1/traces", json=PARENT_CHILD_PAYLOAD)
         assert ingest.json()["accepted"] == 2
 

@@ -8,6 +8,7 @@ from agentq.db.engine import get_session, async_session
 from agentq.db.models import BehaviorCluster, BehaviorAssignment
 from agentq.behaviors.rubric import generate_rubric
 from agentq.api.security import require_admin, require_viewer
+from agentq.db.visibility import visible_trace_ids
 
 router = APIRouter(prefix="/api/behaviors", tags=["behaviors"], dependencies=[Depends(require_viewer)])
 
@@ -18,7 +19,11 @@ async def list_behaviors(
     session: AsyncSession = Depends(get_session),
 ):
     result = await session.execute(
-        select(BehaviorCluster).order_by(desc(BehaviorCluster.created_at)).limit(limit)
+        select(BehaviorCluster).where(BehaviorCluster.id.in_(
+            select(BehaviorAssignment.cluster_id).where(
+                BehaviorAssignment.trace_id.in_(visible_trace_ids(require_behavior=True))
+            )
+        )).order_by(desc(BehaviorCluster.created_at)).limit(limit)
     )
     return [_cluster_to_dict(c) for c in result.scalars().all()]
 
@@ -26,7 +31,12 @@ async def list_behaviors(
 @router.get("/{cluster_id}")
 async def get_behavior(cluster_id: str, session: AsyncSession = Depends(get_session)):
     result = await session.execute(
-        select(BehaviorCluster).where(BehaviorCluster.id == cluster_id)
+        select(BehaviorCluster).where(
+            BehaviorCluster.id == cluster_id,
+            BehaviorCluster.id.in_(select(BehaviorAssignment.cluster_id).where(
+                BehaviorAssignment.trace_id.in_(visible_trace_ids(require_behavior=True))
+            )),
+        )
     )
     cluster = result.scalars().first()
     if not cluster:
@@ -35,6 +45,7 @@ async def get_behavior(cluster_id: str, session: AsyncSession = Depends(get_sess
     assignments = (await session.execute(
         select(BehaviorAssignment)
         .where(BehaviorAssignment.cluster_id == cluster_id)
+        .where(BehaviorAssignment.trace_id.in_(visible_trace_ids(require_behavior=True)))
         .order_by(desc(BehaviorAssignment.assigned_at))
         .limit(10)
     )).scalars().all()
@@ -48,7 +59,17 @@ async def get_behavior(cluster_id: str, session: AsyncSession = Depends(get_sess
 
 
 @router.post("/{cluster_id}/rubric")
-async def trigger_rubric(cluster_id: str, _principal=Depends(require_admin)):
+async def trigger_rubric(
+    cluster_id: str,
+    session: AsyncSession = Depends(get_session),
+    _principal=Depends(require_admin),
+):
+    visible = (await session.execute(select(BehaviorAssignment.id).where(
+        BehaviorAssignment.cluster_id == cluster_id,
+        BehaviorAssignment.trace_id.in_(visible_trace_ids(require_behavior=True)),
+    ).limit(1))).scalar_one_or_none()
+    if visible is None:
+        raise HTTPException(status_code=404, detail="Cluster not found")
     # Create a new session inside the task — the DI session closes when the route returns
     async def _run() -> None:
         async with async_session() as session:
@@ -67,6 +88,7 @@ async def list_behavior_traces(
     result = await session.execute(
         select(BehaviorAssignment)
         .where(BehaviorAssignment.cluster_id == cluster_id)
+        .where(BehaviorAssignment.trace_id.in_(visible_trace_ids(require_behavior=True)))
         .order_by(desc(BehaviorAssignment.assigned_at))
         .offset(offset).limit(limit)
     )

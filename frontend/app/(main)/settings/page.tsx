@@ -26,8 +26,9 @@ export default function SettingsPage() {
   const [channelUrl, setChannelUrl] = useState('')
   const [channelTo, setChannelTo] = useState('')
   const [saved, setSaved] = useState(false)
-  const [llmProvider, setLlmProvider] = useState<'anthropic' | 'openai'>('anthropic')
+  const [llmProvider, setLlmProvider] = useState<'anthropic' | 'openai' | 'openrouter' | 'huggingface' | 'local'>('anthropic')
   const [llmModel, setLlmModel] = useState('')
+  const [llmBaseUrl, setLlmBaseUrl] = useState('')
   const [llmApiKey, setLlmApiKey] = useState('')
   const [llmKeySet, setLlmKeySet] = useState(false)
 
@@ -40,8 +41,9 @@ export default function SettingsPage() {
         setChannelUrl((c.url as string) ?? '')
         setChannelTo((c.to as string) ?? '')
       }
-      setLlmProvider((s.llm_provider as 'anthropic' | 'openai') ?? 'anthropic')
+      setLlmProvider((s.llm_provider as typeof llmProvider) ?? 'anthropic')
       setLlmModel(s.llm_model ?? '')
+      setLlmBaseUrl(s.llm_base_url ?? '')
       setLlmKeySet(s.llm_api_key_set ?? false)
     }).catch(() => {})
   }, [])
@@ -71,6 +73,7 @@ export default function SettingsPage() {
     const body: Partial<AppSettings> & { llm_api_key?: string } = {
       llm_provider: llmProvider,
       llm_model: llmModel,
+      llm_base_url: llmProvider === 'local' ? llmBaseUrl : null,
     }
     if (llmApiKey) body.llm_api_key = llmApiKey
     const updated = await api.settings.update(body)
@@ -155,15 +158,23 @@ export default function SettingsPage() {
         <p className="text-xs text-muted font-mono mb-3">LLM PROVIDER (BEHAVIOR RUBRIC GENERATION)</p>
         <div className="rounded border border-border p-4 space-y-3">
           <div className="flex gap-2">
-            <select value={llmProvider} onChange={e => setLlmProvider(e.target.value as 'anthropic' | 'openai')}
+            <select value={llmProvider} onChange={e => setLlmProvider(e.target.value as typeof llmProvider)}
               className="rounded border border-border bg-surface text-sm px-2 py-1.5 text-text focus:outline-none focus:border-cyan/60">
               <option value="anthropic">Anthropic</option>
               <option value="openai">OpenAI</option>
+              <option value="openrouter">OpenRouter</option>
+              <option value="huggingface">Hugging Face</option>
+              <option value="local">Local / OpenAI-compatible</option>
             </select>
             <input type="text" value={llmModel} onChange={e => setLlmModel(e.target.value)}
               placeholder="e.g. claude-sonnet-4-6 or gpt-4o-mini"
               className="flex-1 rounded border border-border bg-surface text-sm px-3 py-1.5 text-text focus:outline-none focus:border-cyan/60" />
           </div>
+          {llmProvider === 'local' && (
+            <input type="url" value={llmBaseUrl} onChange={e => setLlmBaseUrl(e.target.value)}
+              placeholder="http://localhost:11434/v1"
+              className="w-full rounded border border-border bg-surface text-sm px-3 py-1.5 text-text focus:outline-none focus:border-cyan/60" />
+          )}
           <div>
             <input type="password" value={llmApiKey} onChange={e => setLlmApiKey(e.target.value)}
               placeholder={llmKeySet ? '•••• (already set — enter a new value to replace it)' : 'API key'}

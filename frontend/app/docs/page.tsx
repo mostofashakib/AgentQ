@@ -415,7 +415,7 @@ export OTEL_EXPORTER_OTLP_PROTOCOL=http/json   # or http/protobuf`}</CodeBlock>
           </Callout>
 
           <Prose>
-            <p><strong style={{ color: TEXT }}>Conformance checklist</strong> — for a span to be fully visible to AgentQ's guardrails, it needs: a <InlineCode>service.name</InlineCode> resource attribute (this is the agent's identity — no registration step exists), <InlineCode>trace_id</InlineCode>/<InlineCode>span_id</InlineCode>, <InlineCode>gen_ai.system</InlineCode> + <InlineCode>gen_ai.operation.name</InlineCode> on CLIENT spans, and — critically — actual prompt/completion/tool I/O content. Metadata-only spans pass ingestion, but content-scanning guardrails (injection, PII, exfiltration) have nothing to scan.</p>
+              <p><strong style={{ color: TEXT }}>Conformance checklist</strong> — first authorize the agent on the Connect Agent page and add its generated token to the exporter headers. Every span needs a matching <InlineCode>service.name</InlineCode>, <InlineCode>trace_id</InlineCode>/<InlineCode>span_id</InlineCode>, and <InlineCode>gen_ai.system</InlineCode> + <InlineCode>gen_ai.operation.name</InlineCode> on CLIENT spans. Metadata-only spans pass ingestion, but content-scanning guardrails have nothing to scan.</p>
           </Prose>
 
           <Prose><p><strong style={{ color: TEXT }}>Python — opentelemetry-sdk</strong></p></Prose>
@@ -431,7 +431,10 @@ os.environ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/json"
 provider = TracerProvider()
 provider.add_span_processor(
     BatchSpanProcessor(
-        OTLPSpanExporter(endpoint="http://your-agentq-host:8000/v1/traces")
+        OTLPSpanExporter(
+            endpoint="http://your-agentq-host:8000/v1/traces",
+            headers={"X-AgentQ-Agent-Token": "<connection-token>"},
+        )
     )
 )
 trace.set_tracer_provider(provider)`}</CodeBlock>

@@ -26,8 +26,9 @@ from httpx import AsyncClient, ASGITransport
 from agentq.api.app import app
 
 
-async def test_report_endpoint_creates_span_and_returns_ids():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+async def test_report_endpoint_creates_span_and_returns_ids(connected_agent_factory):
+    token = await connected_agent_factory("report-test-agent")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"X-AgentQ-Agent-Token": token}) as client:
         r = await client.post("/api/report", json={
             "agent_name": "report-test-agent",
             "tool_name": "search_web",

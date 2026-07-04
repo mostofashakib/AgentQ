@@ -27,8 +27,12 @@ from agentq.ingest.writer import span_queue
 # ─── helpers ─────────────────────────────────────────────────────────────────
 
 @pytest.fixture
-async def client():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+async def client(connected_agent_factory):
+    token = await connected_agent_factory(
+        "test-agent", "research-agent", "assistant", "unknown", "my-agent",
+        "agent-alpha", "agent-beta", "weather-agent", "page-agent",
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"X-AgentQ-Agent-Token": token}) as c:
         yield c
 
 

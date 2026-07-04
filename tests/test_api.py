@@ -4,8 +4,9 @@ from agentq.api.app import app
 
 
 @pytest.fixture
-async def client():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+async def client(connected_agent_factory):
+    token = await connected_agent_factory("test-agent", "svc", "agent-x")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test", headers={"X-AgentQ-Agent-Token": token}) as c:
         yield c
 
 
@@ -114,7 +115,7 @@ async def test_traces_after_ingest(client):
 async def test_list_agents_empty(client):
     r = await client.get("/api/agents")
     assert r.status_code == 200
-    assert r.json() == []
+    assert all(agent["span_count"] == 0 for agent in r.json())
 
 
 async def test_list_agents_after_ingest(client):

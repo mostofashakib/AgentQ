@@ -65,6 +65,18 @@ class AgentRun(Base):
     updated_at: Mapped[datetime] = mapped_column(default=utc_now, onupdate=utc_now)
 
 
+class ConnectedAgent(Base):
+    __tablename__ = "connected_agents"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    service_name: Mapped[str] = mapped_column(String, unique=True, index=True)
+    token_hash: Mapped[str] = mapped_column(String)
+    capture_traces: Mapped[bool] = mapped_column(Boolean, default=True)
+    analyze_behavior: Mapped[bool] = mapped_column(Boolean, default=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(default=utc_now)
+
+
 class EvaluationResult(Base):
     __tablename__ = "evaluation_results"
 
@@ -197,6 +209,7 @@ class AppSettings(Base):
     llm_provider: Mapped[str] = mapped_column(String, default="anthropic")
     llm_model: Mapped[str] = mapped_column(String, default="claude-sonnet-4-6")
     llm_api_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    llm_base_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
 # Pydantic models for ingest / inter-module data transfer

@@ -10,12 +10,13 @@ AgentQ sits between your AI agents and production. It ingests OpenTelemetry span
 
 | Capability | What it gives you |
 |---|---|
-| **Span Ingestion** | Drop-in OTel/MCP receiver — no SDK changes required |
+| **Authorized Span Ingestion** | OTel/MCP receiver restricted to agents explicitly connected by the user |
 | **21 Guardrail Rules** | Detects injection, scope creep, data exfiltration, behavioral anomalies, and integrity violations in real time |
 | **Tool Execution Interceptor** | Pre-execution policy, circuit-breaker, and human-approval enforcement |
 | **Behavior Clustering** | Groups traces by composite embedding similarity; auto-generates LLM rubrics at 10 traces per cluster |
 | **Multi-Channel Alerts** | Fires webhook, Slack, or email when a rule matches — with per-rule rate limiting and cooldown |
-| **Live Dashboard** | SSE-driven trace feed, waterfall timeline, DAG viewer, episode replay, violation dashboard, service graph |
+| **Agent Run Monitoring** | Tracks latency, tokens, cost, errors, tool outcomes, retries, evaluations, and terminal status |
+| **Live Dashboard** | SSE-driven trace feed, run health, waterfall timeline, DAG viewer, episode replay, violations, and service graph |
 | **Demo Mode** | One-command seed of realistic traces, violations, clusters, and alert rules — no real agent required |
 
 ---
@@ -86,7 +87,7 @@ AgentQ ships 21 rules across 5 threat classes, evaluated on every ingested span 
 | `integrity.missing_gen_ai_attrs` | integrity | low | CLIENT span missing `gen_ai.system` / operation |
 | `integrity.empty_trace_id` | integrity | medium | Empty or missing `trace_id` |
 
-**Tool Execution Interceptor** — call `POST /api/intercept` before executing a tool to surface guardrail violations before any side effects occur. The endpoint always returns `allowed: true`; violations are in the `violations` array for you to inspect and act on.
+**Tool Execution Interceptor** — call `POST /api/intercept` before executing a tool. Circuit breakers, selected security violations, and pending or rejected approvals return `allowed: false`; other findings remain available in the `violations` array.
 
 ---
 
@@ -139,7 +140,7 @@ cp .env.example .env
 
 Edit `.env` and set:
 - `ADMIN_API_KEY`, `VIEWER_API_KEY`, `INGEST_API_KEY` — generate each with `openssl rand -hex 32`. Required: the container defaults to `ENVIRONMENT=production`, which rejects all requests until these are set.
-- `NEXT_PUBLIC_API_KEY` — the same value as `ADMIN_API_KEY`, so the dashboard itself can reach every endpoint. This is baked into the frontend at build time (rebuild with `docker compose build frontend` if you change it later).
+- `NEXT_PUBLIC_API_KEY` — an API key used by the dashboard. It is embedded in the browser build, so only use this setup for a trusted, operator-only deployment. Put a server-side authentication proxy in front of AgentQ before exposing the dashboard publicly.
 - `ANTHROPIC_API_KEY` (or configure a provider later via the Settings page) — optional, entirely your own key and cost. Rubric generation is skipped without one; nothing else is affected.
 
 ```bash
@@ -154,13 +155,14 @@ To run without auth (e.g. testing on a private LAN only), override `ENVIRONMENT:
 
 ## Connecting an Agent
 
-AgentQ speaks **AOP/1** — the AgentQ Observability Protocol: OTLP/HTTP spans (JSON or protobuf), `service.name` as agent identity (no registration step), OTel GenAI semantic conventions as the action schema, automatic MCP normalization, and a pre-execution intercept hook. Conformance checklist: `service.name`, `trace_id`/`span_id`, `gen_ai.system` + `gen_ai.operation.name` on CLIENT spans, and actual prompt/completion/tool I/O content (metadata-only spans pass ingestion but give content-scanning guardrails nothing to inspect).
+AgentQ speaks **AOP/1** — the AgentQ Observability Protocol: OTLP/HTTP spans (JSON or protobuf), `service.name` as agent identity, OTel GenAI semantic conventions as the action schema, automatic MCP normalization, and a pre-execution intercept hook. First authorize each service on **Connect Agent**. Behavior analysis is always enabled; trace visibility can be selected separately. Multiple connected agents can be observed together. AgentQ shows each generated connection token once and rejects telemetry whose service name and token do not match.
 
 Set two env vars before running your agent:
 
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:8000
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/json   # or http/protobuf — both accepted
+export OTEL_EXPORTER_OTLP_HEADERS="X-AgentQ-Agent-Token=<connection-token>"
 ```
 
 Or use [openlit](https://github.com/openlit/openlit) (recommended):
@@ -215,7 +217,7 @@ resp = httpx.post("http://localhost:8000/api/intercept", json={
     "span_id": new_span_id,
     "tool_name": "send_email",
     "attributes": {"agentq.user_confirmed": False}
-})
+}, headers={"X-AgentQ-Agent-Token": connection_token})
 # Execute only when allowed=true. Pending approvals and policy blocks return allowed=false.
 decision = resp.json()
 ```
@@ -224,15 +226,16 @@ decision = resp.json()
 
 | Tool | What it does |
 |---|---|
-| `report_action(agent_name, tool_name, input, output)` | Logs a completed action — same pipeline (guardrails, storage, dashboard) as an OTLP span |
-| `check_action(agent_name, tool_name, attributes)` | Pre-execution guardrail check — same always-allowed, violations-list semantics as `POST /api/intercept` |
-| `get_violations(agent_name, limit)` | Recent violations for that agent |
+| `report_action(agent_name, tool_name, connection_token, input, output)` | Logs an authorized completed action through the same monitoring pipeline as OTLP |
+| `check_action(agent_name, tool_name, attributes)` | Advisory guardrail check that returns detected violations; use `POST /api/intercept` when enforcement is required |
+| `get_violations(agent_name, connection_token, limit)` | Recent violations for an authorized agent |
 
 **Simple report API:** for agents that don't want to touch OTel at all:
 
 ```bash
 curl -X POST http://localhost:8000/api/report \
   -H "Content-Type: application/json" \
+  -H "X-AgentQ-Agent-Token: <connection-token>" \
   -d '{"agent_name": "my-agent", "tool_name": "send_email", "input": "to: a@b.com", "output": "sent"}'
 ```
 
@@ -261,6 +264,7 @@ Every completed trace is embedded using a composite vector (0.4 × structural op
 - **New cluster** — created when similarity falls below `BEHAVIOR_SIMILARITY_THRESHOLD` (default 0.82)
 - **Existing cluster** — centroid updated as a running average; trace assigned
 - **Rubric generation** — auto-triggered when a cluster reaches 10 traces; calls your configured LLM provider to produce 3–5 classification criteria and a short cluster name. Bring-your-own-key: set a provider and API key via the Settings page, or `ANTHROPIC_API_KEY`/`JUDGE_MODEL` in `.env`. AgentQ never holds or uses its own LLM key — without one configured, cluster naming is skipped with a visible status message; clustering itself (which doesn't require an LLM call) is unaffected.
+- **Provider choice** — Anthropic and OpenAI are supported directly. OpenRouter and Hugging Face use their OpenAI-compatible endpoints. Local Ollama, LM Studio, vLLM, and similar servers can be configured with a custom OpenAI-compatible base URL.
 
 ---
 
@@ -286,25 +290,6 @@ Run aggregation records total and per-span latency, input/output tokens, model a
 
 Stored span attributes are sanitized inside the application process. Prompt and output content is omitted by default. Enabling raw content requires an explicit flag and is still disabled in production; passwords, credentials, tokens, cookies, email addresses, phone numbers, payment data, and government IDs are recursively redacted. Hidden reasoning is never required or stored.
 
-### Product usage tracking
-
-`ProductEventTracker` records explicit feature outcomes without recording clicks,
-keystrokes, prompts, outputs, or other raw user content. Producers send a feature
-name and one of: `viewed`, `started`, `completed`, `failed`, `abandoned`,
-`feedback_positive`, or `feedback_negative`. Optional metadata is redacted before
-storage and limited to 16 KiB.
-
-`POST /api/product-analytics/events` accepts events with ingest access. Clients can
-opt out per request with `X-AgentQ-Tracking-Opt-Out: true`. Tracking can also be
-disabled globally with `PRODUCT_ANALYTICS_ENABLED=false`. `GET
-/api/product-analytics/features` requires viewer access and reports adoption,
-completion, failure, abandonment, repeat use, and feedback counts by feature.
-
-Raw user IDs are never stored. If `PRODUCT_ANALYTICS_IDENTITY_SALT` contains a
-private random value, IDs are correlated using HMAC-SHA256; when it is blank, all
-events remain anonymous. Product events use their own
-`PRODUCT_ANALYTICS_RETENTION_DAYS` retention window, which defaults to 90 days.
-
 The pre-execution interceptor enforces configurable limits for steps, model calls, tool calls, retries, runtime, tokens, cost, and repeated tool calls. Unauthorized calls are blocked. Configured side-effect tools create a pending approval request; retry the same intercept after an authorized reviewer approves it through `/api/approvals/{id}/decision`.
 
 Five deterministic quality results are attached to runs: faithfulness, relevancy, completeness, hallucination risk, and policy adherence. Missing producer signals return `warn` instead of inventing a score. Anomaly records flag latency, cost, output size, repeated failures, and retries. Monitoring records are retained for `TELEMETRY_RETENTION_DAYS` and pruned on startup.
@@ -326,8 +311,8 @@ TELEMETRY_RETENTION_DAYS=30
 # API security — fail-closed by default: required whenever ENVIRONMENT is
 # not "local" (the Docker deployment sets ENVIRONMENT=production). With auth
 # required and no keys configured, every request is rejected — set at least
-# one of these. This gate covers every route: the dashboard read endpoints,
-# the /mcp mount, and the simple report/intercept endpoints.
+# one of these. This gate covers dashboard APIs, telemetry ingestion, the
+# /mcp mount, and report/intercept endpoints. /health remains public.
 # API_AUTH_ENABLED=true  # optional locally; defaults to true outside local
 VIEWER_API_KEY=
 ADMIN_API_KEY=
@@ -408,6 +393,8 @@ documented in [`ENGINEERING.md`](ENGINEERING.md).
 | `GET` | `/api/traces/{trace_id}/waterfall` | Depth-indented span tree |
 | `GET` | `/api/graph` | Service graph (nodes + call edges) |
 | `GET` | `/api/agents` | List connected agents (span/violation counts, first/last seen) |
+| `POST` | `/api/agents` | Explicitly authorize an agent; behavior analysis is always enabled |
+| `DELETE` | `/api/agents/{service_name}` | Disconnect an agent and reject future telemetry |
 | `POST` | `/api/report` | Simple non-OTel action reporting (`agent_name`, `tool_name`, `input`, `output`) |
 | `GET` | `/api/settings` | Current guardrail thresholds and default alert channel |
 | `PUT` | `/api/settings` | Update any subset of guardrail thresholds or the default alert channel |

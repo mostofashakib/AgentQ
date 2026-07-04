@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.engine import get_session
 from agentq.db.models import AgentRun, ApprovalRequest, EvaluationResult, MonitoringEvent, Span, Violation
 from agentq.api.security import require_admin, require_viewer
+from agentq.db.visibility import visible_trace_ids
 
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"], dependencies=[Depends(require_viewer)])
 
@@ -19,7 +20,9 @@ async def list_runs(
     session_id: str | None = None, environment: str | None = None, agent_type: str | None = None,
     status: str | None = None, session: AsyncSession = Depends(get_session),
 ):
-    stmt = select(AgentRun).order_by(desc(AgentRun.created_at)).limit(limit)
+    stmt = select(AgentRun).where(
+        AgentRun.trace_id.in_(visible_trace_ids())
+    ).order_by(desc(AgentRun.created_at)).limit(limit)
     filters = [(AgentRun.session_id, session_id), (AgentRun.environment, environment),
                (AgentRun.agent_type, agent_type), (AgentRun.status, status)]
     for column, value in filters:
@@ -38,7 +41,10 @@ async def list_runs(
 
 @router.get("/runs/{trace_id}")
 async def get_run(trace_id: str, session: AsyncSession = Depends(get_session)):
-    run = (await session.execute(select(AgentRun).where(AgentRun.trace_id == trace_id))).scalars().first()
+    run = (await session.execute(select(AgentRun).where(
+        AgentRun.trace_id == trace_id,
+        AgentRun.trace_id.in_(visible_trace_ids()),
+    ))).scalars().first()
     if not run:
         return None
     evaluations = (await session.execute(select(EvaluationResult).where(EvaluationResult.trace_id == trace_id))).scalars().all()
@@ -73,11 +79,17 @@ async def aggregate_metrics(session: AsyncSession = Depends(get_session)):
         func.avg(AgentRun.total_latency_ms), func.sum(AgentRun.input_tokens + AgentRun.output_tokens),
         func.sum(AgentRun.estimated_cost_usd), func.sum(AgentRun.tool_call_count),
         func.sum(AgentRun.tool_success_count), func.sum(AgentRun.error_count),
-    ))).one()
-    latencies = list((await session.execute(select(AgentRun.total_latency_ms).order_by(AgentRun.total_latency_ms))).scalars())
+    ).where(AgentRun.trace_id.in_(visible_trace_ids())))).one()
+    latencies = list((await session.execute(select(AgentRun.total_latency_ms).where(
+        AgentRun.trace_id.in_(visible_trace_ids())
+    ).order_by(AgentRun.total_latency_ms))).scalars())
     p95 = latencies[min(len(latencies) - 1, int(len(latencies) * .95))] if latencies else 0
-    evaluation_rows = (await session.execute(select(EvaluationResult.status, func.count()).group_by(EvaluationResult.status))).all()
-    event_rows = (await session.execute(select(MonitoringEvent.event_type, func.count()).group_by(MonitoringEvent.event_type))).all()
+    evaluation_rows = (await session.execute(select(EvaluationResult.status, func.count()).where(
+        EvaluationResult.trace_id.in_(visible_trace_ids())
+    ).group_by(EvaluationResult.status))).all()
+    event_rows = (await session.execute(select(MonitoringEvent.event_type, func.count()).where(
+        MonitoringEvent.trace_id.in_(visible_trace_ids())
+    ).group_by(MonitoringEvent.event_type))).all()
     total, successes, failures, avg_latency, tokens, cost, tool_calls, tool_successes, errors = row
     return {"run_volume": total or 0, "success_rate": (successes or 0) / total if total else 0,
             "error_rate": (failures or 0) / total if total else 0, "average_latency_ms": avg_latency or 0,
@@ -89,7 +101,9 @@ async def aggregate_metrics(session: AsyncSession = Depends(get_session)):
 @router.get("/events")
 async def list_events(event_type: str | None = None, severity: str | None = None,
                       session: AsyncSession = Depends(get_session)):
-    stmt = select(MonitoringEvent).order_by(desc(MonitoringEvent.created_at)).limit(500)
+    stmt = select(MonitoringEvent).where(
+        MonitoringEvent.trace_id.in_(visible_trace_ids())
+    ).order_by(desc(MonitoringEvent.created_at)).limit(500)
     if event_type:
         stmt = stmt.where(MonitoringEvent.event_type == event_type)
     if severity:

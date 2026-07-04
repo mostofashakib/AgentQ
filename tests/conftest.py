@@ -15,6 +15,8 @@ from agentq.db.models import Base
 from agentq.guardrails import settings as guardrail_settings
 from agentq.api import rate_limit
 
+TEST_AGENT_TOKEN = "test-agent-connection-token"
+
 
 @pytest.fixture(autouse=True, scope="function")
 async def _use_memory_db(monkeypatch):
@@ -49,3 +51,25 @@ async def _use_memory_db(monkeypatch):
     yield
 
     await engine.dispose()
+
+
+@pytest.fixture
+def connected_agent_factory():
+    async def create(*service_names: str, token: str = TEST_AGENT_TOKEN):
+        from agentq.agents import hash_connection_token
+        from agentq.db.models import ConnectedAgent
+
+        async with db_engine_module.async_session() as session:
+            session.add_all([
+                ConnectedAgent(
+                    service_name=name,
+                    token_hash=hash_connection_token(token),
+                    capture_traces=True,
+                    analyze_behavior=True,
+                )
+                for name in service_names
+            ])
+            await session.commit()
+        return token
+
+    return create

@@ -174,3 +174,23 @@ async def test_put_settings_omitting_llm_api_key_leaves_it_unchanged():
     guardrail_settings.invalidate_cache()
     row = await guardrail_settings.get_app_settings()
     assert row.llm_api_key == "sk-original"
+
+
+async def test_settings_accept_supported_provider_and_base_url():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.put("/api/settings", json={
+            "llm_provider": "local",
+            "llm_model": "llama3.2",
+            "llm_base_url": "http://localhost:11434/v1",
+        })
+
+    assert response.status_code == 200
+    assert response.json()["llm_provider"] == "local"
+    assert response.json()["llm_base_url"] == "http://localhost:11434/v1"
+
+
+async def test_settings_reject_unknown_provider():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.put("/api/settings", json={"llm_provider": "unknown"})
+
+    assert response.status_code == 422

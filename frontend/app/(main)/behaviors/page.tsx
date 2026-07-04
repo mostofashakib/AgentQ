@@ -44,44 +44,49 @@ export default function BehaviorsPage() {
           {clusters.map(cluster => (
             <div key={cluster.id} className="rounded border border-border overflow-hidden">
               {/* Cluster header row */}
-              <button
-                onClick={() => expand(cluster.id)}
-                className="w-full flex items-center gap-4 px-4 py-3 hover:bg-surface/60 transition-colors text-left"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-cyan font-mono">{cluster.name}</span>
-                    <span className="text-xs font-mono text-muted px-2 py-0.5 rounded bg-border/40">
-                      {cluster.trace_count} traces
-                    </span>
+              <div className="w-full flex items-center hover:bg-surface/60 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => expand(cluster.id)}
+                  aria-expanded={expanded === cluster.id}
+                  className="min-w-0 flex-1 flex items-center gap-4 px-4 py-3 text-left"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium text-cyan font-mono">{cluster.name}</span>
+                      <span className="text-xs font-mono text-muted px-2 py-0.5 rounded bg-border/40">
+                        {cluster.trace_count} traces
+                      </span>
+                    </div>
+                    {cluster.description && (
+                      <p className="text-xs text-muted mt-0.5 truncate">{cluster.description}</p>
+                    )}
                   </div>
-                  {cluster.description && (
-                    <p className="text-xs text-muted mt-0.5 truncate">{cluster.description}</p>
-                  )}
-                </div>
 
-                {/* Rubric chips */}
-                <div className="flex flex-wrap gap-1 max-w-xs">
-                  {(cluster.rubric ?? []).slice(0, 3).map((criterion, i) => (
-                    <span key={i} className="text-xs px-2 py-0.5 rounded border border-cyan/20 bg-cyan/5 text-cyan font-mono">
-                      {criterion.length > 30 ? criterion.slice(0, 29) + '…' : criterion}
-                    </span>
-                  ))}
-                  {!cluster.rubric?.length && (
-                    <span className="text-xs text-muted font-mono italic">no rubric yet</span>
-                  )}
-                </div>
+                  <div className="flex flex-wrap gap-1 max-w-xs">
+                    {(cluster.rubric ?? []).slice(0, 3).map((criterion, i) => (
+                      <span key={i} className="text-xs px-2 py-0.5 rounded border border-cyan/20 bg-cyan/5 text-cyan font-mono">
+                        {criterion.length > 30 ? criterion.slice(0, 29) + '…' : criterion}
+                      </span>
+                    ))}
+                    {!cluster.rubric?.length && (
+                      <span className="text-xs text-muted font-mono italic">no rubric yet</span>
+                    )}
+                  </div>
+
+                  <span className="text-muted text-xs">{expanded === cluster.id ? '▲' : '▼'}</span>
+                </button>
 
                 <button
-                  onClick={e => { e.stopPropagation(); generateRubric(cluster.id) }}
+                  type="button"
+                  onClick={() => generateRubric(cluster.id)}
+                  aria-label={`Generate rubric for ${cluster.name}`}
                   disabled={generatingRubric === cluster.id}
-                  className="text-xs font-mono px-3 py-1 rounded border border-border hover:border-cyan/40 text-muted hover:text-cyan transition-colors disabled:opacity-50"
+                  className="mr-4 shrink-0 text-xs font-mono px-3 py-1 rounded border border-border hover:border-cyan/40 text-muted hover:text-cyan transition-colors disabled:opacity-50"
                 >
                   {generatingRubric === cluster.id ? 'Generating…' : 'Gen Rubric'}
                 </button>
-
-                <span className="text-muted text-xs">{expanded === cluster.id ? '▲' : '▼'}</span>
-              </button>
+              </div>
 
               {/* Expanded: recent traces */}
               {expanded === cluster.id && (

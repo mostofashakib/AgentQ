@@ -2,12 +2,21 @@ import pytest
 import uuid
 from httpx import AsyncClient, ASGITransport
 from agentq.api.app import app
-from agentq.db.models import BehaviorCluster, BehaviorAssignment
+from agentq.db.models import BehaviorCluster, BehaviorAssignment, ConnectedAgent, Span
 import agentq.db.engine as db_engine_module
 
 
 async def _seed_cluster(cluster_id: str, name: str = "Behavior-1"):
     async with db_engine_module.async_session() as session:
+        session.add(ConnectedAgent(
+            service_name="behavior-agent", token_hash="unused", capture_traces=True,
+            analyze_behavior=True,
+        ))
+        session.add(Span(
+            trace_id="trace-a", span_id=str(uuid.uuid4()), name="agent.run",
+            span_kind="SERVER", service_name="behavior-agent",
+            start_time_unix_nano=1, end_time_unix_nano=2, duration_ms=0.000001,
+        ))
         session.add(BehaviorCluster(
             id=cluster_id, name=name,
             centroid=[0.1] * 384, trace_count=2,

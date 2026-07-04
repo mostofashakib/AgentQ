@@ -6,17 +6,18 @@ import Link from 'next/link'
 
 type FrameworkId = 'openclaw' | 'otel' | 'mcp' | 'curl'
 
-const FRAMEWORKS: { id: FrameworkId; label: string; lang: string; snippet: (name: string) => string }[] = [
+const FRAMEWORKS: { id: FrameworkId; label: string; lang: string; snippet: (name: string, token: string) => string }[] = [
   {
     id: 'openclaw',
     label: 'OpenClaw',
     lang: 'json5',
-    snippet: (name) => `{
+    snippet: (name, token) => `{
   plugins: { entries: { "diagnostics-otel": { enabled: true } } },
   diagnostics: {
     otel: {
       enabled: true,
       tracesEndpoint: "http://localhost:8000/v1/traces",
+      headers: { "X-AgentQ-Agent-Token": "${token || '<connection-token>'}" },
       protocol: "http/protobuf",
       serviceName: "${name}",
       traces: true,
@@ -37,7 +38,7 @@ const FRAMEWORKS: { id: FrameworkId; label: string; lang: string; snippet: (name
     id: 'otel',
     label: 'Generic OTel SDK (Python)',
     lang: 'python',
-    snippet: (name) => `pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+    snippet: (name, token) => `pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
@@ -47,7 +48,10 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 
 provider = TracerProvider(resource=Resource.create({"service.name": "${name}"}))
 provider.add_span_processor(
-    BatchSpanProcessor(OTLPSpanExporter(endpoint="http://localhost:8000/v1/traces"))
+    BatchSpanProcessor(OTLPSpanExporter(
+        endpoint="http://localhost:8000/v1/traces",
+        headers={"X-AgentQ-Agent-Token": "${token || '<connection-token>'}"},
+    ))
 )
 trace.set_tracer_provider(provider)`,
   },
@@ -55,17 +59,19 @@ trace.set_tracer_provider(provider)`,
     id: 'mcp',
     label: 'MCP Agent',
     lang: 'shell',
-    snippet: (name) => `# Spans with any mcp.* attribute are auto-normalized — no extra config needed.
+    snippet: (name, token) => `# Spans with any mcp.* attribute are auto-normalized — no extra config needed.
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:8000
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/json
+export OTEL_EXPORTER_OTLP_HEADERS="X-AgentQ-Agent-Token=${token || '<connection-token>'}"
 export OTEL_SERVICE_NAME=${name}`,
   },
   {
     id: 'curl',
     label: 'cURL (manual test)',
     lang: 'shell',
-    snippet: (name) => `curl -X POST http://localhost:8000/v1/traces \\
+    snippet: (name, token) => `curl -X POST http://localhost:8000/v1/traces \\
   -H "Content-Type: application/json" \\
+  -H "X-AgentQ-Agent-Token: ${token || '<connection-token>'}" \\
   -d '{
     "resourceSpans": [{
       "resource": { "attributes": [
@@ -105,6 +111,8 @@ export default function ConnectPage() {
   const [frameworkId, setFrameworkId] = useState<FrameworkId>('openclaw')
   const [agentName, setAgentName] = useState('my-agent')
   const [agents, setAgents] = useState<Agent[]>([])
+  const [captureTraces, setCaptureTraces] = useState(true)
+  const [connectionToken, setConnectionToken] = useState('')
 
   useEffect(() => {
     const poll = () => api.agents.list().then(setAgents).catch(() => {})
@@ -115,6 +123,21 @@ export default function ConnectPage() {
 
   const framework = FRAMEWORKS.find(f => f.id === frameworkId)!
   const connected = agents.find(a => a.service_name === agentName.trim())
+
+  async function connectAgent() {
+    const serviceName = agentName.trim()
+    if (!serviceName) return
+    const connection = await api.agents.connect({
+      service_name: serviceName, capture_traces: captureTraces,
+    })
+    setConnectionToken(connection.connection_token)
+    setAgents(await api.agents.list())
+  }
+
+  async function disconnectAgent(serviceName: string) {
+    await api.agents.disconnect(serviceName)
+    setAgents(await api.agents.list())
+  }
 
   return (
     <div className="p-6 max-w-3xl">
@@ -152,14 +175,30 @@ export default function ConnectPage() {
       </div>
 
       <div className="mb-6">
-        <p className="text-xs text-muted font-mono mb-2">3. CONFIG</p>
+        <p className="text-xs text-muted font-mono mb-2">3. MONITORING</p>
+        <div className="flex gap-5 mb-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={captureTraces} onChange={e => setCaptureTraces(e.target.checked)} />
+            Observe traces
+          </label>
+        </div>
+        <button type="button" onClick={connectAgent}
+          disabled={!agentName.trim()}
+          className="text-xs font-mono px-3 py-1.5 rounded border border-cyan/40 text-cyan hover:bg-cyan/10 disabled:opacity-40">
+          Connect and authorize agent
+        </button>
+        <p className="text-xs text-muted mt-2">Behavior analysis is always enabled for connected agents. Trace metadata required for clustering is retained.</p>
+      </div>
+
+      <div className="mb-6">
+        <p className="text-xs text-muted font-mono mb-2">4. CONFIG</p>
         <div className="rounded border border-border overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2 bg-surface/50 border-b border-border">
             <span className="text-xs text-muted font-mono uppercase">{framework.lang}</span>
-            <CopyButton text={framework.snippet(agentName.trim() || 'my-agent')} />
+            <CopyButton text={framework.snippet(agentName.trim() || 'my-agent', connectionToken)} />
           </div>
           <pre className="p-4 text-xs font-mono overflow-x-auto whitespace-pre text-text bg-surface/20">
-            {framework.snippet(agentName.trim() || 'my-agent')}
+            {framework.snippet(agentName.trim() || 'my-agent', connectionToken)}
           </pre>
         </div>
       </div>
@@ -181,6 +220,26 @@ export default function ConnectPage() {
             <p className="text-sm text-muted font-mono">Waiting for spans from &ldquo;{agentName.trim() || 'my-agent'}&rdquo;…</p>
           </div>
         )}
+      </div>
+
+      <div className="mt-6">
+        <p className="text-xs text-muted font-mono mb-2">CONNECTED AGENTS</p>
+        <div className="space-y-2">
+          {agents.map(agent => (
+            <div key={agent.service_name} className="rounded border border-border px-4 py-3 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm text-cyan font-mono truncate">{agent.service_name}</p>
+                <p className="text-xs text-muted">{agent.span_count} spans · {agent.violation_count} violations · behavior active</p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <Link href={`/traces?service=${encodeURIComponent(agent.service_name)}`} className="text-xs text-cyan hover:underline">Observe</Link>
+                <button type="button" onClick={() => disconnectAgent(agent.service_name)}
+                  className="text-xs text-muted hover:text-red-400 transition-colors">Disconnect</button>
+              </div>
+            </div>
+          ))}
+          {agents.length === 0 && <p className="text-sm text-muted">No agents connected.</p>}
+        </div>
       </div>
     </div>
   )

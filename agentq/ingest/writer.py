@@ -9,7 +9,9 @@ from agentq.monitoring.runs import aggregate_run
 from agentq.monitoring.logging import log_event
 
 
-async def write_spans(session: AsyncSession, records: list[SpanRecord]) -> list[Span]:
+async def write_spans(
+    session: AsyncSession, records: list[SpanRecord], *, analyze_behavior: bool = True,
+) -> list[Span]:
     spans = []
     for r in records:
         span = Span(
@@ -55,5 +57,6 @@ async def write_spans(session: AsyncSession, records: list[SpanRecord]) -> list[
     await session.commit()
     for r in records:
         await span_queue.put(r)
-        await behavior_span_queue.put(r)
+        if analyze_behavior:
+            await behavior_span_queue.put(r)
     return spans

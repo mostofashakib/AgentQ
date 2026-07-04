@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.engine import get_session
 from agentq.db.models import Violation
 from agentq.api.security import require_viewer
+from agentq.db.visibility import visible_trace_ids
 
 router = APIRouter(prefix="/api/violations", tags=["violations"], dependencies=[Depends(require_viewer)])
 
@@ -17,7 +18,9 @@ async def list_violations(
     trace_id: str | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
-    stmt = select(Violation).order_by(desc(Violation.created_at)).offset(offset).limit(limit)
+    stmt = select(Violation).where(
+        Violation.trace_id.in_(visible_trace_ids())
+    ).order_by(desc(Violation.created_at)).offset(offset).limit(limit)
     if threat_class:
         stmt = stmt.where(Violation.threat_class == threat_class)
     if severity:

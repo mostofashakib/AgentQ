@@ -4,13 +4,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.engine import get_session
 from agentq.db.models import Span
 from agentq.api.security import require_viewer
+from agentq.db.visibility import visible_spans
 
 router = APIRouter(prefix="/api/graph", tags=["graph"], dependencies=[Depends(require_viewer)])
 
 
 @router.get("")
 async def get_graph(session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(Span))
+    result = await session.execute(visible_spans())
     spans = result.scalars().all()
     return _build_graph(spans)
 

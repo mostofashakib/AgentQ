@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.engine import get_session
 from agentq.db.models import Span
 from agentq.api.security import require_viewer
+from agentq.db.visibility import visible_spans
 
 router = APIRouter(prefix="/api/traces", tags=["traces"], dependencies=[Depends(require_viewer)])
 
@@ -15,7 +16,7 @@ async def list_traces(
     service: str | None = Query(None),
     session: AsyncSession = Depends(get_session),
 ):
-    stmt = select(Span).order_by(desc(Span.start_time_unix_nano)).offset(offset).limit(limit)
+    stmt = visible_spans().order_by(desc(Span.start_time_unix_nano)).offset(offset).limit(limit)
     if service:
         stmt = stmt.where(Span.service_name == service)
     result = await session.execute(stmt)
@@ -26,7 +27,7 @@ async def list_traces(
 @router.get("/{trace_id}/waterfall")
 async def get_trace_waterfall(trace_id: str, session: AsyncSession = Depends(get_session)):
     result = await session.execute(
-        select(Span)
+        visible_spans()
         .where(Span.trace_id == trace_id)
         .order_by(Span.start_time_unix_nano)
     )
@@ -66,7 +67,7 @@ def _build_waterfall(spans) -> list[dict]:
 
 @router.get("/{trace_id}")
 async def get_trace(trace_id: str, session: AsyncSession = Depends(get_session)):
-    result = await session.execute(select(Span).where(Span.trace_id == trace_id))
+    result = await session.execute(visible_spans().where(Span.trace_id == trace_id))
     spans = result.scalars().all()
     return [_span_to_dict(s) for s in spans]
 

@@ -23,9 +23,13 @@ class AnthropicClient(LLMClient):
 
 
 class OpenAIClient(LLMClient):
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, base_url: str | None = None):
         import openai
-        self._client = openai.AsyncOpenAI(api_key=api_key)
+        self.base_url = base_url
+        options = {"api_key": api_key or "local"}
+        if base_url:
+            options["base_url"] = base_url
+        self._client = openai.AsyncOpenAI(**options)
 
     async def complete(self, system: str, prompt: str, model: str, max_tokens: int = 512) -> str:
         resp = await self._client.chat.completions.create(
@@ -35,7 +39,18 @@ class OpenAIClient(LLMClient):
         return resp.choices[0].message.content.strip()
 
 
-def build_client(provider: str, api_key: str) -> LLMClient:
-    if provider == "openai":
-        return OpenAIClient(api_key)
-    return AnthropicClient(api_key)
+_COMPATIBLE_BASE_URLS = {
+    "openrouter": "https://openrouter.ai/api/v1",
+    "huggingface": "https://router.huggingface.co/v1",
+}
+
+
+def build_client(provider: str, api_key: str, base_url: str | None = None) -> LLMClient:
+    if provider == "anthropic":
+        return AnthropicClient(api_key)
+    if provider in {"openai", "openrouter", "huggingface", "local"}:
+        resolved_url = base_url or _COMPATIBLE_BASE_URLS.get(provider)
+        if provider == "local" and not resolved_url:
+            raise ValueError("Local provider requires a base URL")
+        return OpenAIClient(api_key, resolved_url)
+    raise ValueError(f"Unsupported LLM provider: {provider}")

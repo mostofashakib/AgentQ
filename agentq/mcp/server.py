@@ -6,6 +6,7 @@ from agentq.db.models import Violation, Span
 from agentq.guardrails.intercept import check_action as _check_action
 from agentq.ingest.simple_report import build_span_record_from_report
 from agentq.ingest.writer import write_spans
+from agentq.agents import authorize_agent
 
 
 # streamable_http_path="/" — this app is mounted at /mcp in agentq/api/app.py.
@@ -15,13 +16,18 @@ mcp = FastMCP("agentq", streamable_http_path="/")
 
 
 @mcp.tool()
-async def report_action(agent_name: str, tool_name: str, input: str = "", output: str = "") -> dict:
+async def report_action(
+    agent_name: str, tool_name: str, connection_token: str, input: str = "", output: str = "",
+) -> dict:
     """Log a completed agent action (a tool call or LLM turn) to AgentQ."""
     record = build_span_record_from_report(
         agent_name=agent_name, tool_name=tool_name, input=input, output=output,
     )
     async with _db_engine.async_session() as session:
-        await write_spans(session, [record])
+        agent = await authorize_agent(session, {agent_name}, connection_token)
+        if agent is None:
+            return {"accepted": False, "error": "Agent is not connected or its token is invalid"}
+        await write_spans(session, [record], analyze_behavior=True)
     return {"accepted": True, "trace_id": record.trace_id, "span_id": record.span_id}
 
 
@@ -41,9 +47,12 @@ async def check_action(agent_name: str, tool_name: str, attributes: dict | None 
 
 
 @mcp.tool()
-async def get_violations(agent_name: str, limit: int = 20) -> dict:
+async def get_violations(agent_name: str, connection_token: str, limit: int = 20) -> dict:
     """Get recent guardrail violations for a given agent (service_name)."""
     async with _db_engine.async_session() as session:
+        agent = await authorize_agent(session, {agent_name}, connection_token)
+        if agent is None:
+            return {"violations": [], "error": "Agent is not connected or its token is invalid"}
         trace_ids = (
             await session.execute(
                 select(Span.trace_id).where(Span.service_name == agent_name).distinct()

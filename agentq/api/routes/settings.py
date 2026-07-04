@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+from typing import Literal
+from urllib.parse import urlparse
 from agentq.db.engine import get_session
 from agentq.db.models import AppSettings
 from agentq.guardrails.settings import get_app_settings, invalidate_cache
@@ -16,9 +18,22 @@ class SettingsUpdate(BaseModel):
     infinite_loop_repeat_threshold: int | None = None
     behavior_similarity_threshold: float | None = None
     default_alert_channel: dict | None = None
-    llm_provider: str | None = None
+    llm_provider: Literal["anthropic", "openai", "openrouter", "huggingface", "local"] | None = None
     llm_model: str | None = None
     llm_api_key: str | None = None
+    llm_base_url: str | None = None
+
+    @model_validator(mode="after")
+    def validate_local_provider(self):
+        if self.llm_provider == "local" and not self.llm_base_url:
+            raise ValueError("Local provider requires llm_base_url")
+        if self.llm_base_url:
+            parsed = urlparse(self.llm_base_url)
+            if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+                raise ValueError("llm_base_url must be an HTTP(S) URL")
+            if parsed.username or parsed.password:
+                raise ValueError("Credentials must not be embedded in llm_base_url")
+        return self
 
 
 async def _get_or_create_row(session: AsyncSession) -> AppSettings:
@@ -67,5 +82,6 @@ def _to_dict(row: AppSettings) -> dict:
         "default_alert_channel": row.default_alert_channel,
         "llm_provider": row.llm_provider,
         "llm_model": row.llm_model,
+        "llm_base_url": row.llm_base_url,
         "llm_api_key_set": bool(row.llm_api_key),
     }

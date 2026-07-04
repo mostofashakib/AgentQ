@@ -1,11 +1,13 @@
-async def test_report_action_creates_span():
+async def test_report_action_creates_span(connected_agent_factory):
     from agentq.mcp.server import report_action
     import agentq.db.engine as _db_engine
     from sqlalchemy import select
     from agentq.db.models import Span
 
+    token = await connected_agent_factory("mcp-test-agent")
     result = await report_action(
         agent_name="mcp-test-agent", tool_name="search_web",
+        connection_token=token,
         input="query=weather", output="sunny",
     )
     assert result["accepted"] is True
@@ -27,7 +29,7 @@ async def test_check_action_returns_violations():
     assert "scope.high_risk_tool" in rule_ids
 
 
-async def test_get_violations_returns_violations_for_agent():
+async def test_get_violations_returns_violations_for_agent(connected_agent_factory):
     from agentq.mcp.server import report_action as mcp_report_action, get_violations as mcp_get_violations
     from agentq.api.worker import _save_violations
     from agentq.guardrails.registry import build_engine
@@ -35,8 +37,10 @@ async def test_get_violations_returns_violations_for_agent():
     from sqlalchemy import select
     from agentq.db.models import Span
 
+    token = await connected_agent_factory("mcp-violations-agent")
     await mcp_report_action(
         agent_name="mcp-violations-agent", tool_name="exec_command",
+        connection_token=token,
         input="rm -rf /", output="",
     )
     async with _db_engine.async_session() as session:
@@ -55,7 +59,9 @@ async def test_get_violations_returns_violations_for_agent():
     violations = await engine.run_all(synthetic)
     await _save_violations(violations)
 
-    result = await mcp_get_violations(agent_name="mcp-violations-agent", limit=10)
+    result = await mcp_get_violations(
+        agent_name="mcp-violations-agent", connection_token=token, limit=10,
+    )
     assert len(result["violations"]) >= 1
     assert result["violations"][0]["trace_id"] == span_row.trace_id
 
@@ -63,5 +69,7 @@ async def test_get_violations_returns_violations_for_agent():
 async def test_get_violations_empty_for_unknown_agent():
     from agentq.mcp.server import get_violations as mcp_get_violations
 
-    result = await mcp_get_violations(agent_name="no-such-agent", limit=10)
+    result = await mcp_get_violations(
+        agent_name="no-such-agent", connection_token="invalid", limit=10,
+    )
     assert result["violations"] == []

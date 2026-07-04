@@ -19,7 +19,9 @@ from agentq.db.models import (
     BehaviorCluster,
     Span,
     Violation,
+    ConnectedAgent,
 )
+from agentq.agents import hash_connection_token
 from agentq.demo.data import ALERT_RULES, CLUSTERS, DEMO_TRACE_IDS, SCENARIOS
 
 _DEMO_ALERT_IDS = {r["id"] for r in ALERT_RULES}
@@ -46,14 +48,27 @@ async def clear_demo(session: AsyncSession) -> None:
         delete(BehaviorCluster).where(BehaviorCluster.id.in_(_DEMO_CLUSTER_IDS))
     )
     await session.execute(delete(AlertRule).where(AlertRule.id.in_(_DEMO_ALERT_IDS)))
+    await session.execute(delete(ConnectedAgent).where(ConnectedAgent.service_name.in_(
+        {scenario["service"] for scenario in SCENARIOS}
+    )))
     await session.commit()
 
 
 async def seed_demo(session: AsyncSession) -> dict:
+    connected_services = set((await session.execute(select(ConnectedAgent.service_name))).scalars())
+    for service_name in {scenario["service"] for scenario in SCENARIOS} - connected_services:
+        session.add(ConnectedAgent(
+            service_name=service_name,
+            token_hash=hash_connection_token(f"demo:{service_name}"),
+            capture_traces=True,
+            analyze_behavior=True,
+        ))
+
     existing = (
         await session.execute(select(Span).where(Span.trace_id.in_(DEMO_TRACE_IDS)).limit(1))
     ).scalars().first()
     if existing:
+        await session.commit()
         return {"status": "already_seeded"}
 
     now_ns = time.time_ns()

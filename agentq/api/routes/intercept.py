@@ -6,7 +6,7 @@ guardrail engine against a synthetic SpanRecord and returns an allow/deny
 decision immediately so the agent can halt before side effects occur.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
@@ -18,6 +18,7 @@ from agentq.db.models import AgentRun, ApprovalRequest, MonitoringEvent, Span
 from agentq.monitoring.redaction import redact
 from agentq.monitoring.runs import circuit_breaker_reason
 from agentq.api.security import require_ingest
+from agentq.agents import authorize_agent
 
 router = APIRouter(prefix="/api")
 
@@ -43,6 +44,7 @@ class InterceptResponse(BaseModel):
 async def intercept_tool_call(
     req: InterceptRequest,
     session: AsyncSession = Depends(get_session),
+    agent_token: str | None = Header(default=None, alias="X-AgentQ-Agent-Token"),
     _principal=Depends(require_ingest),
 ) -> InterceptResponse:
     """
@@ -58,6 +60,9 @@ async def intercept_tool_call(
         # always allowed=true; inspect violations before executing
         violations = resp.json()["violations"]
     """
+    agent = await authorize_agent(session, {req.service_name}, agent_token)
+    if agent is None:
+        raise HTTPException(status_code=403, detail="Agent is not connected or its token is invalid")
     violations = await check_action(
         trace_id=req.trace_id,
         span_id=req.span_id,
