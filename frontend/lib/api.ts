@@ -192,13 +192,13 @@ export function subscribeToStream(
           const { done, value } = await reader.read()
           if (done) break
           buffer += decoder.decode(value, { stream: true })
-          const parts = buffer.split('\n\n')
+          const parts = buffer.split(/\r?\n\r?\n/)
           buffer = parts.pop() ?? ''
           for (const part of parts) {
-            const line = part.split('\n').find(l => l.startsWith('data: '))
+            const line = part.split(/\r?\n/).find(l => l.trim().startsWith('data: '))
             if (!line) continue
             try {
-              onEvent(JSON.parse(line.slice(6)))
+              onEvent(JSON.parse(line.trim().slice(6)))
             } catch {
               // ignore malformed event payloads
             }
