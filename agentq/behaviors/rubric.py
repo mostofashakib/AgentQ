@@ -4,7 +4,8 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.models import BehaviorCluster, BehaviorAssignment, Span
-from agentq.config import settings
+from agentq.behaviors.llm_client import build_client
+from agentq.guardrails.settings import get_app_settings
 
 logger = logging.getLogger(__name__)
 
@@ -48,20 +49,21 @@ async def generate_rubric(session: AsyncSession, cluster_id: str) -> None:
 
     prompt = "Trace summaries:\n" + "\n".join(f"- {s}" for s in summaries)
 
+    app_settings = await get_app_settings()
+    if not app_settings.llm_api_key:
+        cluster.description = "Rubric generation skipped — no LLM API key configured. Add one in Settings."
+        await session.commit()
+        return
+
     try:
-        import anthropic
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        msg = await client.messages.create(
-            model=settings.judge_model,
-            max_tokens=512,
-            system=_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        data = json.loads(msg.content[0].text.strip())
+        client = build_client(app_settings.llm_provider, app_settings.llm_api_key)
+        text = await client.complete(_SYSTEM, prompt, app_settings.llm_model)
+        data = json.loads(text)
         cluster.rubric = data.get("criteria", [])
         cluster.name = data.get("name", cluster.name)
         cluster.description = "; ".join(data.get("criteria", []))
     except Exception:
         logger.exception("Rubric generation failed for behavior cluster %s", cluster_id)
+        cluster.description = "Rubric generation failed — check server logs."
 
     await session.commit()
