@@ -1,9 +1,10 @@
 import asyncio
 import json
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sse_starlette.sse import EventSourceResponse
+from agentq.api.security import require_viewer
 
-router = APIRouter(prefix="/api/stream", tags=["stream"])
+router = APIRouter(prefix="/api/stream", tags=["stream"], dependencies=[Depends(require_viewer)])
 
 # module-level set of subscriber queues
 _subscribers: set[asyncio.Queue] = set()

@@ -3,8 +3,9 @@ from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.engine import get_session
 from agentq.db.models import Span
+from agentq.api.security import require_viewer
 
-router = APIRouter(prefix="/api/traces", tags=["traces"])
+router = APIRouter(prefix="/api/traces", tags=["traces"], dependencies=[Depends(require_viewer)])
 
 
 @router.get("")

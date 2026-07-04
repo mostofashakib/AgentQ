@@ -10,8 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentq.db.engine import get_session
 from agentq.demo.seed import clear_demo, seed_demo
+from agentq.api.security import require_admin
 
-router = APIRouter(prefix="/api/demo", tags=["demo"])
+router = APIRouter(prefix="/api/demo", tags=["demo"], dependencies=[Depends(require_admin)])
 
 
 @router.post("/seed")
