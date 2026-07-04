@@ -5,7 +5,7 @@ import { api, type AlertRule, type AlertHistory } from '@/lib/api'
 
 const THREATS = ['injection', 'scope', 'exfiltration', 'behavioral', 'integrity']
 const SEVERITIES = ['low', 'medium', 'high', 'critical']
-type ConditionType = 'none' | 'severity' | 'threat_class'
+type ConditionType = 'none' | 'severity' | 'threat_class' | 'unsupported'
 type ChannelType = 'webhook' | 'slack' | 'email'
 
 const EMPTY_FORM: Omit<AlertRule, 'id' | 'created_at'> = {
@@ -17,13 +17,17 @@ const EMPTY_FORM: Omit<AlertRule, 'id' | 'created_at'> = {
   enabled: true,
 }
 
-function conditionsToForm(conditions: Record<string, string>): { type: ConditionType; value: string } {
+function conditionsToForm(conditions: Record<string, string>): { type: ConditionType; value: string; raw?: Record<string, string> } {
   if (conditions.severity) return { type: 'severity', value: conditions.severity }
   if (conditions.threat_class) return { type: 'threat_class', value: conditions.threat_class }
+  if (conditions && Object.keys(conditions).length > 0) {
+    return { type: 'unsupported', value: '', raw: conditions }
+  }
   return { type: 'none', value: '' }
 }
 
-function formToConditions(type: ConditionType, value: string): Record<string, string> {
+function formToConditions(type: ConditionType, value: string, rawConditions: Record<string, string> | null): Record<string, string> {
+  if (type === 'unsupported') return rawConditions ?? {}
   if (type === 'none' || !value) return {}
   return { [type]: value }
 }
@@ -53,6 +57,7 @@ export default function AlertsPage() {
   const [formName, setFormName] = useState('')
   const [formConditionType, setFormConditionType] = useState<ConditionType>('none')
   const [formConditionValue, setFormConditionValue] = useState('')
+  const [formRawConditions, setFormRawConditions] = useState<Record<string, string> | null>(null)
   const [formChannelType, setFormChannelType] = useState<ChannelType>('webhook')
   const [formChannelUrl, setFormChannelUrl] = useState('')
   const [formChannelTo, setFormChannelTo] = useState('')
@@ -78,6 +83,7 @@ export default function AlertsPage() {
     setFormName(EMPTY_FORM.name)
     setFormConditionType('none')
     setFormConditionValue('')
+    setFormRawConditions(null)
     setFormChannelType('webhook')
     setFormChannelUrl('')
     setFormChannelTo('')
@@ -94,6 +100,7 @@ export default function AlertsPage() {
     const cond = conditionsToForm(rule.conditions)
     setFormConditionType(cond.type)
     setFormConditionValue(cond.value)
+    setFormRawConditions(cond.type === 'unsupported' ? cond.raw ?? rule.conditions : null)
     const chan = channelToForm(rule.channels)
     setFormChannelType(chan.type)
     setFormChannelUrl(chan.url)
@@ -115,7 +122,7 @@ export default function AlertsPage() {
     setFormError(null)
     const body: Omit<AlertRule, 'id' | 'created_at'> = {
       name: formName,
-      conditions: formToConditions(formConditionType, formConditionValue),
+      conditions: formToConditions(formConditionType, formConditionValue, formRawConditions),
       channels: formToChannels(formChannelType, formChannelUrl, formChannelTo),
       frequency_limit: formFrequency,
       cooldown_minutes: formCooldown,
@@ -227,14 +234,25 @@ export default function AlertsPage() {
                   <div className="flex gap-2">
                     <select
                       value={formConditionType}
-                      onChange={e => { setFormConditionType(e.target.value as ConditionType); setFormConditionValue('') }}
+                      onChange={e => {
+                        setFormConditionType(e.target.value as ConditionType)
+                        setFormConditionValue('')
+                        setFormRawConditions(null)
+                      }}
                       className="rounded border border-border bg-surface text-sm px-2 py-1.5 text-text focus:outline-none focus:border-cyan/60"
                     >
                       <option value="none">Any (wildcard)</option>
                       <option value="severity">Severity</option>
                       <option value="threat_class">Threat class</option>
+                      {formConditionType === 'unsupported' && (
+                        <option value="unsupported" disabled>Advanced (preserved as-is)</option>
+                      )}
                     </select>
-                    {formConditionType !== 'none' && (
+                    {formConditionType === 'unsupported' ? (
+                      <div className="flex-1 rounded border border-border bg-surface/50 text-xs px-2 py-1.5 text-muted italic">
+                        Advanced condition (not editable here) — switch to Severity/Threat class/Any to replace it
+                      </div>
+                    ) : formConditionType !== 'none' && (
                       <select
                         value={formConditionValue}
                         onChange={e => setFormConditionValue(e.target.value)}
