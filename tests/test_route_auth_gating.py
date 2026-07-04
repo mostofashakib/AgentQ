@@ -10,6 +10,9 @@ from agentq.api.app import app
     ("get", "/api/graph"),
     ("get", "/api/agents"),
     ("get", "/api/stream"),
+    ("get", "/api/behaviors"),
+    ("get", "/api/behaviors/test-cluster-id"),
+    ("get", "/api/behaviors/test-cluster-id/traces"),
 ])
 async def test_dashboard_read_routes_reject_missing_key_when_auth_required(monkeypatch, method, path):
     from agentq.api import security
@@ -28,6 +31,7 @@ async def test_dashboard_read_routes_reject_missing_key_when_auth_required(monke
     ("get", "/api/violations"),
     ("get", "/api/graph"),
     ("get", "/api/agents"),
+    ("get", "/api/behaviors"),
 ])
 async def test_dashboard_read_routes_accept_viewer_key(monkeypatch, method, path):
     from agentq.api import security
@@ -39,6 +43,24 @@ async def test_dashboard_read_routes_accept_viewer_key(monkeypatch, method, path
         response = await getattr(client, method)(path, headers={"X-AgentQ-API-Key": "viewer-secret"})
 
     assert response.status_code == 200
+
+
+@pytest.mark.parametrize("method,path", [
+    ("get", "/api/behaviors/test-cluster-id"),
+    ("get", "/api/behaviors/test-cluster-id/traces"),
+])
+async def test_behaviors_path_parameterized_routes_accept_viewer_key(monkeypatch, method, path):
+    """Path-parameterized routes return 404 for nonexistent IDs, but the key point
+    is that auth let the request through (vs. 401). A non-401 response proves auth gating works."""
+    from agentq.api import security
+
+    monkeypatch.setattr(security.settings, "api_auth_enabled", True)
+    monkeypatch.setattr(security.settings, "viewer_api_key", "viewer-secret")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await getattr(client, method)(path, headers={"X-AgentQ-API-Key": "viewer-secret"})
+
+    assert response.status_code != 401
 
 
 async def test_demo_router_rejects_missing_key_when_auth_required(monkeypatch):

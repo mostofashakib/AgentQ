@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agentq.db.engine import get_session, async_session
 from agentq.db.models import BehaviorCluster, BehaviorAssignment
 from agentq.behaviors.rubric import generate_rubric
-from agentq.api.security import require_admin
+from agentq.api.security import require_admin, require_viewer
 
-router = APIRouter(prefix="/api/behaviors", tags=["behaviors"])
+router = APIRouter(prefix="/api/behaviors", tags=["behaviors"], dependencies=[Depends(require_viewer)])
 
 
 @router.get("")
