@@ -111,3 +111,66 @@ async def test_get_app_settings_seeds_none_llm_api_key_when_env_key_empty(monkey
     row = await guardrail_settings.get_app_settings()
 
     assert row.llm_api_key is None
+
+
+async def test_get_settings_never_returns_raw_llm_api_key(monkeypatch):
+    from agentq.config import settings as env_settings
+    from agentq.guardrails import settings as guardrail_settings
+
+    guardrail_settings.invalidate_cache()
+    monkeypatch.setattr(env_settings, "anthropic_api_key", "sk-ant-super-secret")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.get("/api/settings")
+
+    body = r.json()
+    assert "llm_api_key" not in body
+    assert body["llm_api_key_set"] is True
+    assert body["llm_provider"] == "anthropic"
+
+
+async def test_get_settings_reports_key_not_set_when_empty(monkeypatch):
+    from agentq.config import settings as env_settings
+    from agentq.guardrails import settings as guardrail_settings
+
+    guardrail_settings.invalidate_cache()
+    monkeypatch.setattr(env_settings, "anthropic_api_key", "")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.get("/api/settings")
+
+    assert r.json()["llm_api_key_set"] is False
+
+
+async def test_put_settings_can_set_llm_provider_model_and_key():
+    from agentq.guardrails import settings as guardrail_settings
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.put("/api/settings", json={
+            "llm_provider": "openai",
+            "llm_model": "gpt-4o-mini",
+            "llm_api_key": "sk-openai-test",
+        })
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["llm_provider"] == "openai"
+    assert body["llm_model"] == "gpt-4o-mini"
+    assert body["llm_api_key_set"] is True
+
+    guardrail_settings.invalidate_cache()
+    row = await guardrail_settings.get_app_settings()
+    assert row.llm_api_key == "sk-openai-test"
+
+
+async def test_put_settings_omitting_llm_api_key_leaves_it_unchanged():
+    from agentq.guardrails import settings as guardrail_settings
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await client.put("/api/settings", json={"llm_api_key": "sk-original"})
+        r = await client.put("/api/settings", json={"llm_provider": "anthropic"})
+
+    assert r.status_code == 200
+    guardrail_settings.invalidate_cache()
+    row = await guardrail_settings.get_app_settings()
+    assert row.llm_api_key == "sk-original"

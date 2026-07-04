@@ -16,6 +16,9 @@ class SettingsUpdate(BaseModel):
     infinite_loop_repeat_threshold: int | None = None
     behavior_similarity_threshold: float | None = None
     default_alert_channel: dict | None = None
+    llm_provider: str | None = None
+    llm_model: str | None = None
+    llm_api_key: str | None = None
 
 
 async def _get_or_create_row(session: AsyncSession) -> AppSettings:
@@ -62,4 +65,7 @@ def _to_dict(row: AppSettings) -> dict:
         "infinite_loop_repeat_threshold": row.infinite_loop_repeat_threshold,
         "behavior_similarity_threshold": row.behavior_similarity_threshold,
         "default_alert_channel": row.default_alert_channel,
+        "llm_provider": row.llm_provider,
+        "llm_model": row.llm_model,
+        "llm_api_key_set": bool(row.llm_api_key),
     }
