@@ -9,13 +9,9 @@ decision immediately so the agent can halt before side effects occur.
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Any
-from agentq.db.models import SpanRecord
-from agentq.guardrails.registry import build_engine
-from agentq.guardrails.models import ViolationRecord
+from agentq.guardrails.intercept import check_action
 
 router = APIRouter(prefix="/api")
-
-_engine = build_engine()
 
 
 class InterceptRequest(BaseModel):
@@ -45,24 +41,16 @@ async def intercept_tool_call(req: InterceptRequest) -> InterceptResponse:
             "tool_name": "send_email",
             "attributes": {"agentq.user_confirmed": False}
         })
-        if not resp.json()["allowed"]:
-            raise ToolBlockedError(resp.json()["reason"])
+        # always allowed=true; inspect violations before executing
+        violations = resp.json()["violations"]
     """
-    synthetic = SpanRecord(
+    violations = await check_action(
         trace_id=req.trace_id,
         span_id=req.span_id,
-        name=f"tool:{req.tool_name}",
-        span_kind="CLIENT",
+        tool_name=req.tool_name,
         service_name=req.service_name,
-        start_time_unix_nano=0,
-        end_time_unix_nano=0,
-        duration_ms=0.0,
-        gen_ai_tool_name=req.tool_name,
-        attributes={**req.attributes, "gen_ai.tool.name": req.tool_name},
+        attributes=req.attributes,
     )
-
-    violations: list[ViolationRecord] = await _engine.run_all(synthetic)
-
     return InterceptResponse(
         allowed=True,
         violations=[v.model_dump() for v in violations],
