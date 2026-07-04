@@ -197,6 +197,22 @@ resp = httpx.post("http://localhost:8000/api/intercept", json={
 violations = resp.json()["violations"]
 ```
 
+**MCP server:** AgentQ is itself reachable as an MCP server at `http://localhost:8000/mcp`, exposing 3 tools for any MCP client (Claude Desktop, a custom agent, etc.):
+
+| Tool | What it does |
+|---|---|
+| `report_action(agent_name, tool_name, input, output)` | Logs a completed action — same pipeline (guardrails, storage, dashboard) as an OTLP span |
+| `check_action(agent_name, tool_name, attributes)` | Pre-execution guardrail check — same always-allowed, violations-list semantics as `POST /api/intercept` |
+| `get_violations(agent_name, limit)` | Recent violations for that agent |
+
+**Simple report API:** for agents that don't want to touch OTel at all:
+
+```bash
+curl -X POST http://localhost:8000/api/report \
+  -H "Content-Type: application/json" \
+  -d '{"agent_name": "my-agent", "tool_name": "send_email", "input": "to: a@b.com", "output": "sent"}'
+```
+
 ---
 
 ## Dashboard Views
@@ -209,7 +225,8 @@ violations = resp.json()["violations"]
 | **Violations** | Filter by threat class and severity; stat cards for totals and criticals |
 | **Behaviors** | Cluster list with rubric chips, trace count, member trace drill-down; "Generate Rubric" button |
 | **Service Graph** | SVG force-directed graph; node size = span count, edge width = call frequency |
-| **Alerts** | Rule CRUD (conditions, channels, rate limits), alert history table |
+| **Alerts** | Rule CRUD with structured condition/channel pickers, rate limits, alert history table |
+| **Settings** | Tune guardrail thresholds at runtime, set a default alert channel, view MCP/API connection info |
 | **Docs** | Built-in API and configuration reference |
 
 ---
@@ -282,6 +299,10 @@ SMTP_TO=
 | `GET` | `/api/traces/{trace_id}/waterfall` | Depth-indented span tree |
 | `GET` | `/api/graph` | Service graph (nodes + call edges) |
 | `GET` | `/api/agents` | List connected agents (span/violation counts, first/last seen) |
+| `POST` | `/api/report` | Simple non-OTel action reporting (`agent_name`, `tool_name`, `input`, `output`) |
+| `GET` | `/api/settings` | Current guardrail thresholds and default alert channel |
+| `PUT` | `/api/settings` | Update any subset of guardrail thresholds or the default alert channel |
+| — | `/mcp` | AgentQ's MCP server endpoint (`report_action`, `check_action`, `get_violations` tools) |
 | `GET` | `/api/violations` | List violations (threat_class, severity, trace_id filters) |
 | `GET` | `/api/behaviors` | List behavior clusters |
 | `GET` | `/api/behaviors/{id}` | Cluster detail + member trace IDs |
