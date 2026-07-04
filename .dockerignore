@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.py[cod]
+.git/
+.worktrees/
+agentq.db
+agentq_demo.db
+frontend/
+docs/
+.superpowers/
+.env
+.env.*.local

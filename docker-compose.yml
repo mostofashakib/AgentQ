@@ -1,0 +1,26 @@
+services:
+  backend:
+    build: .
+    env_file: .env
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: sqlite+aiosqlite:////data/agentq.db
+      DEMO_DATABASE_URL: sqlite+aiosqlite:////data/agentq_demo.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - agentq-data:/data
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_API_KEY: ${NEXT_PUBLIC_API_KEY}
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  agentq-data:
