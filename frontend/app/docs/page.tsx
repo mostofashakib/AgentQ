@@ -275,7 +275,7 @@ export default function DocsPage() {
         <div style={{ padding: '20px 18px', borderBottom: `1px solid ${BORDER}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <Activity size={16} color={ACCENT} />
-            <span style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: 13, fontWeight: 700, color: ACCENT, letterSpacing: '0.1em' }}>AGENTQ</span>
+            <span style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: 13, fontWeight: 700, color: ACCENT, letterSpacing: '0.1em' }}>AgentQ</span>
           </div>
           <span style={{ fontSize: 12, color: MUTED }}>Documentation</span>
         </div>
@@ -332,10 +332,6 @@ export default function DocsPage() {
 
           {/* ── Hero ─────────────────────────────────────────────────── */}
           <div style={{ marginBottom: 60 }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 20, background: SURFACE, border: `1px solid ${BORDER}`, fontSize: 12, color: MUTED, fontFamily: '"IBM Plex Mono", monospace', marginBottom: 24 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT, boxShadow: `0 0 8px ${ACCENT}` }} />
-              AI Agent Observability Platform
-            </div>
             <h1 style={{ fontSize: 36, fontWeight: 700, lineHeight: 1.2, marginBottom: 18, letterSpacing: '-0.025em' }}>
               <span style={{ color: TEXT }}>AgentQ </span>
               <span style={{ background: 'linear-gradient(135deg, #00D4FF 0%, #3B82F6 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>

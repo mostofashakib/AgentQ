@@ -21,9 +21,8 @@ export function Sidebar() {
       <Link href="/traces" className="px-4 py-5 border-b border-border block hover:bg-border/20 transition-colors">
         <div className="flex items-center gap-2">
           <Activity size={18} className="text-cyan" />
-          <span className="text-sm font-semibold tracking-widest text-cyan font-mono">AGENTQ</span>
+          <span className="text-sm font-semibold tracking-widest text-cyan font-mono">AgentQ</span>
         </div>
-        <p className="text-xs text-muted mt-1">Observability Platform</p>
       </Link>
       <nav className="flex-1 p-3 space-y-1">
         {nav.map(({ href, label, icon: Icon }) => {

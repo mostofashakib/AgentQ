@@ -58,7 +58,7 @@ function TracesContent() {
             live ? 'bg-green/10 border-green/20 text-green' : 'bg-muted/10 border-border text-muted'
           }`}>
             <span className={`w-1.5 h-1.5 rounded-full ${live ? 'bg-green animate-pulse' : 'bg-muted'}`} />
-            {live ? 'LIVE' : 'CONNECTING'}
+            {!live && 'CONNECTING'}
           </div>
         </div>
       </div>
