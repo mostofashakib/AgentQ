@@ -408,15 +408,19 @@ cp .env.example .env
           <SectionHeading id="connecting" title="Connecting an Agent" />
 
           <Prose>
-            <p>AgentQ accepts standard OTLP/HTTP JSON spans. Set two environment variables before running your agent — replacing <InlineCode>your-agentq-host</InlineCode> with your deployment address:</p>
+            <p>AgentQ speaks <strong style={{ color: TEXT }}>AOP/1</strong> — the AgentQ Observability Protocol. It accepts standard OTLP/HTTP spans in either encoding. Set two environment variables before running your agent — replacing <InlineCode>your-agentq-host</InlineCode> with your deployment address:</p>
           </Prose>
 
           <CodeBlock lang="shell">{`export OTEL_EXPORTER_OTLP_ENDPOINT=http://your-agentq-host:8000
-export OTEL_EXPORTER_OTLP_PROTOCOL=http/json`}</CodeBlock>
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/json   # or http/protobuf`}</CodeBlock>
 
-          <Callout kind="warning" title="JSON only">
-            AgentQ only supports <InlineCode>http/json</InlineCode> encoding. Protobuf (<InlineCode>http/protobuf</InlineCode>) is rejected with HTTP&nbsp;415.
+          <Callout kind="note" title="JSON and protobuf">
+            Both <InlineCode>http/json</InlineCode> and <InlineCode>http/protobuf</InlineCode> are accepted on <InlineCode>/v1/traces</InlineCode> — use whichever your SDK defaults to. Most OTel SDKs (and OpenClaw's diagnostics-otel plugin) default to protobuf.
           </Callout>
+
+          <Prose>
+            <p><strong style={{ color: TEXT }}>Conformance checklist</strong> — for a span to be fully visible to AgentQ's guardrails, it needs: a <InlineCode>service.name</InlineCode> resource attribute (this is the agent's identity — no registration step exists), <InlineCode>trace_id</InlineCode>/<InlineCode>span_id</InlineCode>, <InlineCode>gen_ai.system</InlineCode> + <InlineCode>gen_ai.operation.name</InlineCode> on CLIENT spans, and — critically — actual prompt/completion/tool I/O content. Metadata-only spans pass ingestion, but content-scanning guardrails (injection, PII, exfiltration) have nothing to scan.</p>
+          </Prose>
 
           <Prose><p><strong style={{ color: TEXT }}>Python — opentelemetry-sdk</strong></p></Prose>
           <CodeBlock lang="python">{`pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
@@ -440,6 +444,34 @@ trace.set_tracer_provider(provider)`}</CodeBlock>
           <CodeBlock lang="python">{`pip install openlit
 import openlit
 openlit.init(otlp_endpoint="http://your-agentq-host:8000/v1/traces")`}</CodeBlock>
+
+          <Prose><p><strong style={{ color: TEXT }}>OpenClaw</strong></p></Prose>
+          <CodeBlock lang="shell">{`openclaw plugins install clawhub:@openclaw/diagnostics-otel
+openclaw plugins enable diagnostics-otel`}</CodeBlock>
+          <CodeBlock lang="json5">{`{
+  plugins: { entries: { "diagnostics-otel": { enabled: true } } },
+  diagnostics: {
+    otel: {
+      enabled: true,
+      tracesEndpoint: "http://your-agentq-host:8000/v1/traces",
+      protocol: "http/protobuf",
+      serviceName: "openclaw-prod",
+      traces: true,
+      metrics: false,
+      logs: false,
+      captureContent: {
+        enabled: true,
+        inputMessages: true,
+        outputMessages: true,
+        toolInputs: true,
+        toolOutputs: true,
+      },
+    },
+  },
+}`}</CodeBlock>
+          <Callout kind="warning" title="captureContent is off by default">
+            OpenClaw's <InlineCode>captureContent</InlineCode> defaults to all-false for privacy — spans carry only bounded identifiers, never prompt/response/tool text. Left at the default, AgentQ's content-scanning guardrails receive spans but have nothing to scan, and will not fire. Enabling <InlineCode>captureContent</InlineCode> is what makes those guardrails effective — it's a deliberate privacy/security tradeoff (conversation content leaves OpenClaw and is stored by AgentQ), not something to default on without deciding that.
+          </Callout>
 
           <Prose>
             <p><strong style={{ color: TEXT }}>MCP agents</strong></p>
