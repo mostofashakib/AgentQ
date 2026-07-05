@@ -19,7 +19,18 @@ class BehaviorAlertEvent(BaseModel):
     similarity_score: float
 
 
-AlertEvent = ViolationAlertEvent | BehaviorAlertEvent
+class MonitoringAlertEvent(BaseModel):
+    type: Literal["monitoring"] = "monitoring"
+    trace_id: str
+    agent_run_id: str | None = None
+    span_id: str | None = None
+    event_type: str
+    category: str
+    severity: str
+    reason: str
+
+
+AlertEvent = ViolationAlertEvent | BehaviorAlertEvent | MonitoringAlertEvent
 
 span_queue: asyncio.Queue[SpanRecord] = asyncio.Queue()
 behavior_span_queue: asyncio.Queue[SpanRecord] = asyncio.Queue()

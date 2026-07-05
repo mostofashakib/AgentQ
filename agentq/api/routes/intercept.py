@@ -14,7 +14,8 @@ from typing import Any
 from agentq.guardrails.intercept import check_action
 from agentq.config import settings
 from agentq.db.engine import get_session
-from agentq.db.models import AgentRun, ApprovalRequest, MonitoringEvent, Span
+from agentq.db.models import AgentRun, ApprovalRequest, Span
+from agentq.monitoring.emitter import emit_monitoring_event
 from agentq.monitoring.redaction import redact
 from agentq.monitoring.runs import circuit_breaker_reason
 from agentq.api.security import require_ingest
@@ -80,9 +81,10 @@ async def intercept_tool_call(
     if breaker:
         status, reason = breaker
         run.status, run.terminal_reason = status, reason
-        session.add(MonitoringEvent(trace_id=req.trace_id, agent_run_id=run.agent_run_id,
-                                    span_id=req.span_id, event_type="circuit_breaker", category="run_limit",
-                                    severity="high", reason=reason))
+        await emit_monitoring_event(
+            session, trace_id=req.trace_id, agent_run_id=run.agent_run_id, span_id=req.span_id,
+            event_type="circuit_breaker", category="run_limit", severity="high", reason=reason,
+        )
         await session.commit()
         return InterceptResponse(allowed=False, rule_id="circuit_breaker", reason=reason,
                                  violations=[v.model_dump() for v in violations], status=status)
@@ -90,9 +92,11 @@ async def intercept_tool_call(
     if blocking_violation and blocking_violation.rule_id in {
         "scope.unsanctioned_tool", "injection.system_prompt_override", "exfiltration.sensitive_key_in_output"
     }:
-        session.add(MonitoringEvent(trace_id=req.trace_id, agent_run_id=run.agent_run_id if run else None,
-                                    span_id=req.span_id, event_type="security", category=blocking_violation.rule_id,
-                                    severity=blocking_violation.severity, reason=blocking_violation.description))
+        await emit_monitoring_event(
+            session, trace_id=req.trace_id, agent_run_id=run.agent_run_id if run else None,
+            span_id=req.span_id, event_type="security", category=blocking_violation.rule_id,
+            severity=blocking_violation.severity, reason=blocking_violation.description,
+        )
         await session.commit()
         return InterceptResponse(allowed=False, rule_id=blocking_violation.rule_id,
                                  reason=blocking_violation.description,

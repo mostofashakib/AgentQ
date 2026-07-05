@@ -8,6 +8,7 @@ from agentq.config import settings
 from agentq.db.models import AgentRun, EvaluationResult, MonitoringEvent, Span
 from agentq.monitoring.anomaly import detect_run_anomalies
 from agentq.monitoring.cost import estimate_cost
+from agentq.monitoring.emitter import emit_monitoring_event
 from agentq.monitoring.logging import log_event
 
 
@@ -64,14 +65,19 @@ async def aggregate_run(session: AsyncSession, trace_id: str) -> AgentRun:
     run.status = str(explicit_status or ("failed" if errors else "success"))
     await session.flush()
 
+    previous_categories = set((await session.execute(
+        select(MonitoringEvent.category).where(
+            MonitoringEvent.trace_id == trace_id, MonitoringEvent.event_type == "anomaly")
+    )).scalars())
     await session.execute(delete(MonitoringEvent).where(
         MonitoringEvent.trace_id == trace_id, MonitoringEvent.event_type == "anomaly"
     ))
     for anomaly in detect_run_anomalies(run):
-        session.add(MonitoringEvent(
-            trace_id=trace_id, agent_run_id=run.agent_run_id, event_type="anomaly",
-            category=anomaly.category, severity=anomaly.severity, reason=anomaly.reason,
-        ))
+        await emit_monitoring_event(
+            session, trace_id=trace_id, agent_run_id=run.agent_run_id,
+            event_type="anomaly", category=anomaly.category, severity=anomaly.severity,
+            reason=anomaly.reason, notify=anomaly.category not in previous_categories,
+        )
     log_event("agent_run_updated", trace_id=trace_id, agent_run_id=run.agent_run_id,
               session_id=run.session_id, status=run.status, latency_ms=run.total_latency_ms,
               tokens=run.input_tokens + run.output_tokens, cost_usd=run.estimated_cost_usd)
@@ -100,9 +106,17 @@ async def record_evaluations(session: AsyncSession, trace_id: str, evaluations) 
         existing = (await session.execute(select(EvaluationResult).where(
             EvaluationResult.trace_id == trace_id, EvaluationResult.evaluator == result.evaluator
         ))).scalars().first()
+        previous_status = existing.status if existing else None
         if existing is None:
             existing = EvaluationResult(trace_id=trace_id, agent_run_id=run.agent_run_id, evaluator=result.evaluator,
                                         status=result.status, score=result.score, reason=result.reason)
             session.add(existing)
         else:
             existing.status, existing.score, existing.reason = result.status, result.score, result.reason
+        if result.status == "fail" and previous_status != "fail":
+            severity = "high" if result.evaluator in {"hallucination_risk", "policy_adherence"} else "medium"
+            await emit_monitoring_event(
+                session, trace_id=trace_id, agent_run_id=run.agent_run_id,
+                event_type="evaluation", category=result.evaluator, severity=severity,
+                reason=result.reason or f"{result.evaluator} evaluation failed",
+            )

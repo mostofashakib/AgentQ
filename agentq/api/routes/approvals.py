@@ -6,7 +6,8 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentq.db.engine import get_session
-from agentq.db.models import AgentRun, ApprovalRequest, MonitoringEvent
+from agentq.db.models import AgentRun, ApprovalRequest
+from agentq.monitoring.emitter import emit_monitoring_event
 from agentq.api.security import Principal, require_admin, require_viewer
 from agentq.utils.time import utc_now
 
@@ -53,10 +54,13 @@ async def decide_approval(
     if run:
         run.status = "success" if body.decision == "approved" else "blocked"
         run.terminal_reason = f"Action {body.decision} by reviewer"
-    session.add(MonitoringEvent(trace_id=item.trace_id, agent_run_id=item.agent_run_id, span_id=item.span_id,
-                                event_type="approval", category=body.decision, severity="high",
-                                reason=body.reason or f"Action {body.decision} by {reviewer_id}",
-                                metadata_json={"reviewer_id": reviewer_id, "tool_name": item.tool_name}))
+    await emit_monitoring_event(
+        session, trace_id=item.trace_id, agent_run_id=item.agent_run_id, span_id=item.span_id,
+        event_type="approval", category=body.decision,
+        severity="high" if body.decision == "rejected" else "medium",
+        reason=body.reason or f"Action {body.decision} by {reviewer_id}",
+        metadata={"reviewer_id": reviewer_id, "tool_name": item.tool_name},
+    )
     await session.commit()
     await session.refresh(item)
     return _as_dict(item)
