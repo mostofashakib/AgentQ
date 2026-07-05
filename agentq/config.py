@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     max_tokens_per_run: int = 100_000
     max_cost_usd_per_run: float = 10.0
     max_similar_tool_calls: int = 5
+    max_similar_model_calls: int = 3
+    cheap_task_token_threshold: int = 300
     unusual_cost_usd: float = 5.0
     unusual_latency_ms: float = 30_000.0
     unusual_output_tokens: int = 8_000

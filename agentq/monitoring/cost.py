@@ -12,8 +12,17 @@ _PRICES: dict[str, tuple[float, float]] = {
 _FALLBACK = (3.00, 15.00)
 
 
-def estimate_cost(model: str | None, input_tokens: int, output_tokens: int) -> float:
+def _price_for(model: str | None) -> tuple[float, float]:
     normalized = (model or "").lower()
-    prices = next((price for name, price in sorted(_PRICES.items(), key=lambda item: len(item[0]), reverse=True)
-                   if name in normalized), _FALLBACK)
+    return next((price for name, price in sorted(_PRICES.items(), key=lambda item: len(item[0]), reverse=True)
+                 if name in normalized), _FALLBACK)
+
+
+def estimate_cost(model: str | None, input_tokens: int, output_tokens: int) -> float:
+    prices = _price_for(model)
     return round((input_tokens * prices[0] + output_tokens * prices[1]) / 1_000_000, 8)
+
+
+def is_premium_model(model: str | None) -> bool:
+    """Input price >= $2/M tokens; unknown models count as premium (conservative)."""
+    return _price_for(model)[0] >= 2.0

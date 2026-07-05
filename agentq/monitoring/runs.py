@@ -8,6 +8,7 @@ from agentq.config import settings
 from agentq.db.models import AgentRun, EvaluationResult, MonitoringEvent, Span
 from agentq.monitoring.anomaly import detect_run_anomalies
 from agentq.monitoring.cost import estimate_cost
+from agentq.monitoring.efficiency import detect_cost_inefficiencies
 from agentq.monitoring.emitter import emit_monitoring_event
 from agentq.monitoring.logging import log_event
 
@@ -72,7 +73,7 @@ async def aggregate_run(session: AsyncSession, trace_id: str) -> AgentRun:
     await session.execute(delete(MonitoringEvent).where(
         MonitoringEvent.trace_id == trace_id, MonitoringEvent.event_type == "anomaly"
     ))
-    for anomaly in detect_run_anomalies(run):
+    for anomaly in [*detect_run_anomalies(run), *detect_cost_inefficiencies(model_spans)]:
         await emit_monitoring_event(
             session, trace_id=trace_id, agent_run_id=run.agent_run_id,
             event_type="anomaly", category=anomaly.category, severity=anomaly.severity,

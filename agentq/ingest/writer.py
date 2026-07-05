@@ -7,6 +7,7 @@ from agentq.config import settings
 from agentq.monitoring.redaction import sanitize_span_attributes
 from agentq.monitoring.runs import aggregate_run
 from agentq.monitoring.logging import log_event
+from agentq.monitoring.similarity import fingerprint
 
 
 async def write_spans(
@@ -14,6 +15,14 @@ async def write_spans(
 ) -> list[Span]:
     spans = []
     for r in records:
+        safe_attributes = sanitize_span_attributes(
+            r.attributes,
+            allow_prompt=settings.environment != "production" and settings.raw_prompt_logging_enabled,
+            allow_output=settings.environment != "production" and settings.raw_output_logging_enabled,
+        )
+        raw_prompt = r.attributes.get("gen_ai.prompt") or r.attributes.get("gen_ai.input.messages") or r.attributes.get("input.value")
+        if raw_prompt and (r.gen_ai_system or r.gen_ai_operation in {"chat", "completion"}):
+            safe_attributes["agentq.prompt_fingerprint"] = fingerprint(raw_prompt)
         span = Span(
             trace_id=r.trace_id,
             span_id=r.span_id,
@@ -30,11 +39,7 @@ async def write_spans(
             gen_ai_input_tokens=r.gen_ai_input_tokens,
             gen_ai_output_tokens=r.gen_ai_output_tokens,
             gen_ai_tool_name=r.gen_ai_tool_name,
-            attributes=sanitize_span_attributes(
-                r.attributes,
-                allow_prompt=settings.environment != "production" and settings.raw_prompt_logging_enabled,
-                allow_output=settings.environment != "production" and settings.raw_output_logging_enabled,
-            ),
+            attributes=safe_attributes,
         )
         session.add(span)
         spans.append(span)
