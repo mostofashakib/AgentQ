@@ -23,6 +23,7 @@ from agentq.mcp.server import mcp as mcp_server
 from agentq.monitoring.retention import prune_expired_telemetry
 from agentq.utils.tasks import BackgroundTaskGroup
 from agentq.demo.startup import seed_demo_if_enabled
+from agentq.api.alerts.defaults import seed_default_alert_rules
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,8 @@ async def lifespan(app: FastAPI):
             )
         async with async_session() as session:
             await prune_expired_telemetry(session)
+            await seed_default_alert_rules(session)
+            await session.commit()
         await seed_demo_if_enabled(enabled=settings.demo_mode, session_factory=async_session)
         async with BackgroundTaskGroup() as workers:
             workers.start(guardrail_worker(), name="guardrail-worker")
