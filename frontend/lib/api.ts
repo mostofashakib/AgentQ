@@ -179,6 +179,20 @@ export interface AgentRun {
   error_count: number
 }
 
+export interface SessionCost {
+  session_id: string
+  run_count: number
+  total_tokens: number
+  estimated_cost_usd: number
+  error_count: number
+  tool_call_count: number
+}
+
+export interface QualityTrends {
+  days: { date: string; evaluators: Record<string, { pass: number; warn: number; fail: number }> }[]
+  totals: Record<string, { pass: number; warn: number; fail: number }>
+}
+
 export function subscribeToStream(
   onEvent: (event: { type: string; data: Record<string, unknown> }) => void,
   onStatusChange: (live: boolean) => void,
@@ -317,5 +331,9 @@ export const api = {
       apiFetch(`/api/monitoring/metrics`).then(r => r.json()),
     runs: (): Promise<AgentRun[]> =>
       apiFetch(`/api/monitoring/runs`).then(r => r.json()),
+    sessions: () =>
+      apiFetch(`/api/monitoring/sessions`).then(r => r.json() as Promise<SessionCost[]>),
+    qualityTrends: (days = 7) =>
+      apiFetch(`/api/monitoring/quality-trends?days=${days}`).then(r => r.json() as Promise<QualityTrends>),
   },
 }

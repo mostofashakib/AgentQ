@@ -2,20 +2,31 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { api, type AgentRun, type MonitoringMetrics } from '@/lib/api'
+import { api, type AgentRun, type MonitoringMetrics, type QualityTrends, type SessionCost } from '@/lib/api'
 
 const percent = (value: number) => `${(value * 100).toFixed(1)}%`
 
 export default function MonitoringPage() {
   const [metrics, setMetrics] = useState<MonitoringMetrics | null>(null)
   const [runs, setRuns] = useState<AgentRun[]>([])
+  const [sessions, setSessions] = useState<SessionCost[]>([])
+  const [trends, setTrends] = useState<QualityTrends | null>(null)
 
   useEffect(() => {
-    Promise.all([api.monitoring.metrics(), api.monitoring.runs()]).then(([summary, recent]) => {
+    Promise.all([
+      api.monitoring.metrics(),
+      api.monitoring.runs(),
+      api.monitoring.sessions(),
+      api.monitoring.qualityTrends(),
+    ]).then(([summary, recent, sessionCosts, qualityTrends]) => {
       setMetrics(summary)
       setRuns(recent)
+      setSessions(sessionCosts)
+      setTrends(qualityTrends)
     })
   }, [])
+
+  const evaluators = trends ? Object.entries(trends.totals) : []
 
   const cards = metrics ? [
     ['RUNS', metrics.run_volume.toLocaleString()],
@@ -41,6 +52,39 @@ export default function MonitoringPage() {
       {Object.keys(metrics.evaluation_counts).length > 0 && <span>evaluations: {Object.entries(metrics.evaluation_counts).map(([k, v]) => `${k} ${v}`).join(' · ')}</span>}
       {Object.keys(metrics.event_counts).length > 0 && <span>events: {Object.entries(metrics.event_counts).map(([k, v]) => `${k} ${v}`).join(' · ')}</span>}
     </div>}
+    {evaluators.length > 0 && <div className="mb-6">
+      <div className="font-mono text-[10px] tracking-widest text-muted mb-2">QUALITY TRENDS</div>
+      <div className="border border-border rounded overflow-hidden">
+        <table className="w-full text-sm"><thead className="bg-surface/50"><tr>
+          {['EVALUATOR', 'PASS', 'WARN', 'FAIL', 'PASS RATE'].map(h => <th key={h} className="text-left px-4 py-2.5 text-xs text-muted font-mono font-normal">{h}</th>)}
+        </tr></thead><tbody>{evaluators.map(([name, counts]) => {
+          const total = counts.pass + counts.warn + counts.fail
+          return <tr key={name} className="border-t border-border/60">
+            <td className="px-4 py-2.5 text-muted">{name}</td>
+            <td className="px-4 py-2.5 font-mono text-xs text-green">{counts.pass}</td>
+            <td className="px-4 py-2.5 font-mono text-xs text-amber">{counts.warn}</td>
+            <td className="px-4 py-2.5 font-mono text-xs text-red">{counts.fail}</td>
+            <td className="px-4 py-2.5 font-mono text-xs text-cyan">{total > 0 ? percent(counts.pass / total) : '—'}</td>
+          </tr>
+        })}</tbody></table>
+      </div>
+    </div>}
+    <div className="mb-6">
+      <div className="font-mono text-[10px] tracking-widest text-muted mb-2">SESSION COSTS</div>
+      <div className="border border-border rounded overflow-hidden">
+        <table className="w-full text-sm"><thead className="bg-surface/50"><tr>
+          {['SESSION', 'RUNS', 'TOKENS', 'COST', 'ERRORS'].map(h => <th key={h} className="text-left px-4 py-2.5 text-xs text-muted font-mono font-normal">{h}</th>)}
+        </tr></thead><tbody>{sessions.map(session => <tr key={session.session_id} className="border-t border-border/60">
+          <td className="px-4 py-2.5 font-mono text-xs text-cyan">{session.session_id}</td>
+          <td className="px-4 py-2.5 font-mono text-xs">{session.run_count.toLocaleString()}</td>
+          <td className="px-4 py-2.5 font-mono text-xs">{session.total_tokens.toLocaleString()}</td>
+          <td className="px-4 py-2.5 font-mono text-xs">${session.estimated_cost_usd.toFixed(4)}</td>
+          <td className="px-4 py-2.5 font-mono text-xs">{session.error_count}</td>
+        </tr>)}{sessions.length === 0 && <tr><td colSpan={5} className="px-4 py-12 text-center text-muted text-sm">
+          No sessions yet — attach session.id to your spans and AgentQ aggregates cost per user session automatically.
+        </td></tr>}</tbody></table>
+      </div>
+    </div>
     <div className="border border-border rounded overflow-hidden">
       <table className="w-full text-sm"><thead className="bg-surface/50"><tr>
         {['TRACE', 'AGENT', 'STATUS', 'LATENCY', 'TOKENS', 'COST', 'TOOLS'].map(h => <th key={h} className="text-left px-4 py-2.5 text-xs text-muted font-mono font-normal">{h}</th>)}
