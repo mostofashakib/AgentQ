@@ -14,6 +14,7 @@ import agentq.db.engine as db_engine_module
 from agentq.db.models import Base
 from agentq.guardrails import settings as guardrail_settings
 from agentq.api import rate_limit
+from agentq.monitoring.similarity import similar_calls
 
 TEST_AGENT_TOKEN = "test-agent-connection-token"
 
@@ -51,6 +52,14 @@ async def _use_memory_db(monkeypatch):
     yield
 
     await engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _reset_similar_calls():
+    """The similarity tracker is a process-global singleton; reset it before
+    each test so state can't leak across tests."""
+    similar_calls.reset()
+    yield
 
 
 @pytest.fixture

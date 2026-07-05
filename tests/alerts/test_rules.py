@@ -120,3 +120,15 @@ def test_monitoring_only_conditions_do_not_match_violation_events():
     from agentq.api.alerts.rules import matches
     rule = _rule({"event_type": "anomaly"})
     assert not matches(rule, _violation_event())
+
+
+def test_unknown_condition_key_does_not_match_monitoring_event_and_does_not_raise():
+    from agentq.api.alerts.rules import matches
+    rule = _rule({"event": "circuit_breaker"})
+    assert matches(rule, _monitoring_event()) is False
+
+
+def test_unknown_condition_key_does_not_match_violation_event_and_does_not_raise():
+    from agentq.api.alerts.rules import matches
+    rule = _rule({"agent_type": "x"})
+    assert matches(rule, _violation_event()) is False

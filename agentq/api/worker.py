@@ -36,6 +36,7 @@ async def _save_violations(span, violations: list[ViolationRecord] | None = None
                 evidence=redact_text(v.evidence) if v.evidence else None,
                 chain_span_ids=v.chain_span_ids,
             ))
+            # Deliberately not emit_monitoring_event: violations already alert via ViolationAlertEvent below.
             session.add(MonitoringEvent(
                 trace_id=v.trace_id, span_id=v.span_id, event_type="security",
                 category=v.rule_id, severity=v.severity, reason=v.description,

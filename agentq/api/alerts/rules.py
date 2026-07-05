@@ -20,7 +20,7 @@ def matches(rule: AlertRule, event: AlertEvent) -> bool:
             return False
         v = event.violation
         checks = {"severity": v.severity, "threat_class": v.threat_class, "rule_id": v.rule_id}
-        return all(conditions[key] == checks[key] for key in keys)
+        return all(key in checks and conditions[key] == checks[key] for key in keys)
 
     if isinstance(event, BehaviorAlertEvent):
         if keys & (_VIOLATION_FIELDS | _MONITORING_FIELDS | {"severity"}):
@@ -31,6 +31,6 @@ def matches(rule: AlertRule, event: AlertEvent) -> bool:
         if keys & (_VIOLATION_FIELDS | _BEHAVIOR_FIELDS):
             return False
         checks = {"severity": event.severity, "event_type": event.event_type, "category": event.category}
-        return all(conditions[key] == checks[key] for key in keys)
+        return all(key in checks and conditions[key] == checks[key] for key in keys)
 
     return False
