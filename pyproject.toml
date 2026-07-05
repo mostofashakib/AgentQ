@@ -32,6 +32,10 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Live tests need Ollama, a local Gemma model, and frontend node_modules;
+# they are opt-in via `pytest -m live` (or ./app.sh e2e) rather than part
+# of the default suite that CI runs.
+addopts = "-m 'not live'"
 markers = [
     "live: runs a real local Gemma model and may install/start Ollama",
 ]
