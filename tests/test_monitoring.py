@@ -3,10 +3,12 @@ import logging
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+import agentq.db.engine as db_engine
 from agentq.api.app import app
 
 from agentq.config import Settings
-from agentq.db.models import AgentRun, SpanRecord
+from agentq.db.models import AgentRun, MonitoringEvent, SpanRecord
+from agentq.monitoring.emitter import AGGREGATE_TRACE_ID
 from agentq.monitoring.anomaly import detect_run_anomalies
 from agentq.monitoring.cost import estimate_cost
 from agentq.monitoring.evaluators import evaluate_span
@@ -121,3 +123,23 @@ async def test_full_run_metrics_and_approval_flow(client):
 
     metrics = (await client.get("/api/monitoring/metrics")).json()
     assert metrics["run_volume"] == 1
+
+
+async def test_aggregate_events_visible_without_owning_trace(client):
+    """Aggregate (trace_id="aggregate") events have no Span/AgentRun/connected-agent
+    row, so visible_trace_ids() alone would hide them; the routes must include them."""
+    async with db_engine.async_session() as session:
+        session.add(MonitoringEvent(
+            trace_id=AGGREGATE_TRACE_ID, event_type="anomaly", category="error_rate_spike",
+            severity="high", reason="test",
+        ))
+        await session.commit()
+
+    events = (await client.get("/api/monitoring/events")).json()
+    assert any(e["trace_id"] == AGGREGATE_TRACE_ID and e["category"] == "error_rate_spike" for e in events)
+
+    filtered = (await client.get("/api/monitoring/events", params={"event_type": "anomaly"})).json()
+    assert any(e["trace_id"] == AGGREGATE_TRACE_ID and e["category"] == "error_rate_spike" for e in filtered)
+
+    metrics = (await client.get("/api/monitoring/metrics")).json()
+    assert metrics["event_counts"].get("anomaly", 0) >= 1
