@@ -7,17 +7,18 @@ decision immediately so the agent can halt before side effects occur.
 """
 
 from fastapi import APIRouter, Depends, Header, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 from typing import Any
 from agentq.guardrails.intercept import check_action
 from agentq.config import settings
 from agentq.db.engine import get_session
-from agentq.db.models import AgentRun, ApprovalRequest, Span
+from agentq.db.models import AgentRun, ApprovalRequest
 from agentq.monitoring.emitter import emit_monitoring_event
 from agentq.monitoring.redaction import redact
 from agentq.monitoring.runs import circuit_breaker_reason
+from agentq.monitoring.similarity import similar_calls
 from agentq.api.security import require_ingest
 from agentq.agents import authorize_agent
 
@@ -72,9 +73,8 @@ async def intercept_tool_call(
         attributes=req.attributes,
     )
     run = (await session.execute(select(AgentRun).where(AgentRun.trace_id == req.trace_id))).scalars().first()
-    repeated = (await session.execute(select(func.count()).select_from(Span).where(
-        Span.trace_id == req.trace_id, Span.gen_ai_tool_name == req.tool_name
-    ))).scalar_one()
+    call_args = {key: value for key, value in req.attributes.items() if not key.startswith("agentq.")}
+    repeated = similar_calls.record(req.trace_id, req.tool_name, call_args)
     breaker = circuit_breaker_reason(run, req.tool_name, repeated) if run else None
     blocking_violation = next((v for v in violations if v.severity in {"high", "critical"}), None)
 
