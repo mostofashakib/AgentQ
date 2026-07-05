@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import case, delete, desc, exists, func, select
+from sqlalchemy import case, delete, desc, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agentq.db.engine import get_session
 from agentq.db.models import AgentRun, ApprovalRequest, EvaluationResult, MonitoringEvent, Span, Violation
 from agentq.api.security import require_admin, require_viewer
 from agentq.db.visibility import visible_trace_ids
+from agentq.monitoring.emitter import AGGREGATE_TRACE_ID
 
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"], dependencies=[Depends(require_viewer)])
 
@@ -87,9 +88,10 @@ async def aggregate_metrics(session: AsyncSession = Depends(get_session)):
     evaluation_rows = (await session.execute(select(EvaluationResult.status, func.count()).where(
         EvaluationResult.trace_id.in_(visible_trace_ids())
     ).group_by(EvaluationResult.status))).all()
-    event_rows = (await session.execute(select(MonitoringEvent.event_type, func.count()).where(
-        MonitoringEvent.trace_id.in_(visible_trace_ids())
-    ).group_by(MonitoringEvent.event_type))).all()
+    event_rows = (await session.execute(select(MonitoringEvent.event_type, func.count()).where(or_(
+        MonitoringEvent.trace_id.in_(visible_trace_ids()),
+        MonitoringEvent.trace_id == AGGREGATE_TRACE_ID,
+    )).group_by(MonitoringEvent.event_type))).all()
     total, successes, failures, avg_latency, tokens, cost, tool_calls, tool_successes, errors = row
     return {"run_volume": total or 0, "success_rate": (successes or 0) / total if total else 0,
             "error_rate": (failures or 0) / total if total else 0, "average_latency_ms": avg_latency or 0,
@@ -101,9 +103,10 @@ async def aggregate_metrics(session: AsyncSession = Depends(get_session)):
 @router.get("/events")
 async def list_events(event_type: str | None = None, severity: str | None = None,
                       session: AsyncSession = Depends(get_session)):
-    stmt = select(MonitoringEvent).where(
-        MonitoringEvent.trace_id.in_(visible_trace_ids())
-    ).order_by(desc(MonitoringEvent.created_at)).limit(500)
+    stmt = select(MonitoringEvent).where(or_(
+        MonitoringEvent.trace_id.in_(visible_trace_ids()),
+        MonitoringEvent.trace_id == AGGREGATE_TRACE_ID,
+    )).order_by(desc(MonitoringEvent.created_at)).limit(500)
     if event_type:
         stmt = stmt.where(MonitoringEvent.event_type == event_type)
     if severity:

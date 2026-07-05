@@ -26,3 +26,12 @@ def detect_run_anomalies(run: AgentRun) -> list[Anomaly]:
     if (run.retry_count or 0) > settings.max_retries // 2:
         results.append(Anomaly("excessive_retries", "medium", f"Run has {run.retry_count} retries"))
     return results
+
+
+def detect_format_change(model_spans) -> list[Anomaly]:
+    """Producer-declared output formats (agentq.output_format) flipping mid-run."""
+    formats = {span.attributes.get("agentq.output_format") for span in model_spans} - {None, ""}
+    if len(formats) > 1:
+        return [Anomaly("output_format_change", "medium",
+                        f"Model output format changed mid-run: {sorted(formats)}")]
+    return []

@@ -20,7 +20,8 @@ from agentq.api.worker import guardrail_worker
 from agentq.behaviors.worker import behavior_worker
 from agentq.api.alerts.worker import alert_worker
 from agentq.mcp.server import mcp as mcp_server
-from agentq.monitoring.retention import prune_expired_telemetry
+from agentq.monitoring.retention import prune_expired_telemetry, retention_worker
+from agentq.monitoring.trends import trend_worker
 from agentq.utils.tasks import BackgroundTaskGroup
 from agentq.demo.startup import seed_demo_if_enabled
 from agentq.api.alerts.defaults import seed_default_alert_rules
@@ -52,6 +53,8 @@ async def lifespan(app: FastAPI):
             workers.start(guardrail_worker(), name="guardrail-worker")
             workers.start(behavior_worker(), name="behavior-worker")
             workers.start(alert_worker(), name="alert-worker")
+            workers.start(retention_worker(), name="retention-worker")
+            workers.start(trend_worker(), name="trend-worker")
             yield
 
 

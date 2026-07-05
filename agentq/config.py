@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     unusual_cost_usd: float = 5.0
     unusual_latency_ms: float = 30_000.0
     unusual_output_tokens: int = 8_000
+    trend_check_interval_seconds: float = 300.0
+    trend_window_minutes: int = 15
+    trend_baseline_minutes: int = 60
+    trend_spike_multiplier: float = 2.0
+    trend_min_runs: int = 5
+    retention_interval_seconds: float = 3600.0
     approval_required_tools: str = (
         "send_email,delete,delete_file,drop_table,update_production,make_purchase,"
         "publish,change_permissions,privileged_exec"
