@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import case, delete, desc, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +9,7 @@ from agentq.db.models import AgentRun, ApprovalRequest, EvaluationResult, Monito
 from agentq.api.security import require_admin, require_viewer
 from agentq.db.visibility import visible_trace_ids
 from agentq.monitoring.emitter import AGGREGATE_TRACE_ID
+from agentq.utils.time import utc_now
 
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"], dependencies=[Depends(require_viewer)])
 
@@ -115,3 +118,40 @@ async def list_events(event_type: str | None = None, severity: str | None = None
              "event_type": e.event_type, "category": e.category, "severity": e.severity,
              "reason": e.reason, "metadata": e.metadata_json, "created_at": e.created_at.isoformat()}
             for e in (await session.execute(stmt)).scalars().all()]
+
+
+@router.get("/sessions")
+async def session_costs(limit: int = Query(50, le=200), session: AsyncSession = Depends(get_session)):
+    """Cost, token, and error aggregates per user session, most expensive first."""
+    total_tokens = func.sum(AgentRun.input_tokens + AgentRun.output_tokens)
+    total_cost = func.sum(AgentRun.estimated_cost_usd)
+    rows = (await session.execute(
+        select(AgentRun.session_id, func.count(AgentRun.id), total_tokens, total_cost,
+               func.sum(AgentRun.error_count), func.sum(AgentRun.tool_call_count))
+        .where(AgentRun.trace_id.in_(visible_trace_ids()), AgentRun.session_id.is_not(None))
+        .group_by(AgentRun.session_id).order_by(desc(total_cost)).limit(limit)
+    )).all()
+    return [{"session_id": session_id, "run_count": run_count, "total_tokens": tokens or 0,
+             "estimated_cost_usd": cost or 0, "error_count": errors or 0, "tool_call_count": tools or 0}
+            for session_id, run_count, tokens, cost, errors, tools in rows]
+
+
+@router.get("/quality-trends")
+async def quality_trends(days: int = Query(7, ge=1, le=90), session: AsyncSession = Depends(get_session)):
+    """Daily pass/warn/fail counts per evaluator so quality is comparable over time."""
+    cutoff = utc_now() - timedelta(days=days)
+    rows = (await session.execute(
+        select(EvaluationResult.evaluator, EvaluationResult.status, EvaluationResult.created_at)
+        .where(EvaluationResult.created_at >= cutoff,
+               EvaluationResult.trace_id.in_(visible_trace_ids()))
+    )).all()
+    daily: dict[str, dict[str, dict[str, int]]] = {}
+    totals: dict[str, dict[str, int]] = {}
+    for evaluator, status, created_at in rows:
+        day = created_at.date().isoformat()
+        bucket = daily.setdefault(day, {}).setdefault(evaluator, {"pass": 0, "warn": 0, "fail": 0})
+        total = totals.setdefault(evaluator, {"pass": 0, "warn": 0, "fail": 0})
+        if status in bucket:
+            bucket[status] += 1
+            total[status] += 1
+    return {"days": [{"date": day, "evaluators": daily[day]} for day in sorted(daily)], "totals": totals}
