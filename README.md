@@ -293,7 +293,11 @@ Stored span attributes are sanitized inside the application process. Prompt and 
 
 The pre-execution interceptor enforces configurable limits for steps, model calls, tool calls, retries, runtime, tokens, cost, and repeated tool calls. Unauthorized calls are blocked. Configured side-effect tools create a pending approval request; retry the same intercept after an authorized reviewer approves it through `/api/approvals/{id}/decision`.
 
-Five deterministic quality results are attached to runs: faithfulness, relevancy, completeness, hallucination risk, and policy adherence. Missing producer signals return `warn` instead of inventing a score. Anomaly records flag latency, cost, output size, repeated failures, and retries. Monitoring records are retained for `TELEMETRY_RETENTION_DAYS` and pruned on startup.
+Five deterministic quality results are attached to runs: faithfulness, relevancy, completeness, hallucination risk, and policy adherence. Missing producer signals return `warn` instead of inventing a score. Anomaly records flag latency, cost, output size, repeated failures, and retries. Monitoring records are retained for `TELEMETRY_RETENTION_DAYS` and pruned periodically.
+
+Beyond per-run checks, a background trend worker compares the last `TREND_WINDOW_MINUTES` of runs against the preceding baseline and raises `error_rate_spike`, `aggregate_latency_spike`, and `aggregate_cost_spike` events (deduplicated per window). Cost-efficiency heuristics flag runs that repeat identical prompts to the same model (matched by privacy-safe SHA-256 fingerprints — raw prompts are never stored) and runs that use a premium model for tasks small enough for a cheaper one. Retention pruning runs periodically (`RETENTION_INTERVAL_SECONDS`), not just at startup.
+
+Every safety signal — circuit breakers, approval rejections, anomalies, failed evaluators, security blocks — flows into the alert pipeline. Alert rules can match `event_type`, `category`, and `severity` alongside the existing violation conditions, and four noise-safe default rules are seeded on first startup (visible and editable in the Alerts dashboard). Rules without channels fall back to the default alert channel configured in Settings. `GET /api/monitoring/sessions` aggregates cost per user session and `GET /api/monitoring/quality-trends` exposes daily evaluator pass/warn/fail rates; both appear on the Run Health dashboard.
 
 To debug a failed run, open its trace in the dashboard or call `GET /api/monitoring/runs/{trace_id}`. The response combines run metrics, evaluation reasons, anomalies, security events, circuit-breaker reasons, and approval decisions. Then inspect `GET /api/traces/{trace_id}/waterfall` for the exact failing child span.
 
@@ -335,6 +339,14 @@ MAX_SIMILAR_TOOL_CALLS=5
 UNUSUAL_COST_USD=5
 UNUSUAL_LATENCY_MS=30000
 UNUSUAL_OUTPUT_TOKENS=8000
+MAX_SIMILAR_MODEL_CALLS=3
+CHEAP_TASK_TOKEN_THRESHOLD=300
+TREND_CHECK_INTERVAL_SECONDS=300
+TREND_WINDOW_MINUTES=15
+TREND_BASELINE_MINUTES=60
+TREND_SPIKE_MULTIPLIER=2.0
+TREND_MIN_RUNS=5
+RETENTION_INTERVAL_SECONDS=3600
 APPROVAL_REQUIRED_TOOLS=send_email,delete,delete_file,drop_table,update_production,make_purchase,publish,change_permissions,privileged_exec
 
 # Demo mode — seeds realistic sample data on startup
@@ -384,6 +396,8 @@ documented in [`ENGINEERING.md`](ENGINEERING.md).
 | `GET` | `/api/monitoring/runs/{trace_id}` | Run metrics, evaluations, and safety events |
 | `DELETE` | `/api/monitoring/runs/{trace_id}` | Delete all retained monitoring data for a trace |
 | `GET` | `/api/monitoring/metrics` | Aggregate health, latency, cost, and quality metrics |
+| `GET` | `/api/monitoring/sessions` | Per-session run, token, cost, and error aggregates |
+| `GET` | `/api/monitoring/quality-trends?days=7` | Daily evaluator pass/warn/fail counts |
 | `GET` | `/api/monitoring/events` | Security, anomaly, approval, and circuit-breaker events |
 | `GET` | `/api/approvals` | List approval requests |
 | `POST` | `/api/approvals/{id}/decision` | Approve or reject a high-risk action |
