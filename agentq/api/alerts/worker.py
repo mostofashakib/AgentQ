@@ -9,6 +9,7 @@ import agentq.db.engine as _db_engine
 from agentq.events import alert_event_queue, AlertEvent, ViolationAlertEvent
 from agentq.api.alerts.cooldown import cooldown_tracker
 from agentq.api.alerts.rules import matches
+from agentq.guardrails.settings import get_app_settings
 from agentq.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
@@ -56,8 +57,10 @@ async def alert_worker() -> None:
         try:
             rules = await _load_rules()
 
-            trace_id = event.violation.trace_id if isinstance(event, ViolationAlertEvent) else event.trace_id
-            span_id = event.violation.span_id if isinstance(event, ViolationAlertEvent) else None
+            if isinstance(event, ViolationAlertEvent):
+                trace_id, span_id = event.violation.trace_id, event.violation.span_id
+            else:
+                trace_id, span_id = event.trace_id, getattr(event, "span_id", None)
 
             for rule in rules:
                 if not matches(rule, event):
@@ -67,7 +70,12 @@ async def alert_worker() -> None:
 
                 cooldown_tracker.record_fire(rule.id)
 
-                for channel_cfg in (rule.channels or []):
+                channels = list(rule.channels or [])
+                if not channels:
+                    app_settings = await get_app_settings()
+                    if app_settings.default_alert_channel:
+                        channels = [app_settings.default_alert_channel]
+                for channel_cfg in channels:
                     channel_label = await _dispatch_channel(channel_cfg, event, rule.name)
                     async with _db_engine.async_session() as session:
                         session.add(AlertHistory(

@@ -1,6 +1,6 @@
 # agentq/api/alerts/channels/slack.py
 import httpx
-from agentq.events import AlertEvent, ViolationAlertEvent
+from agentq.events import AlertEvent, MonitoringAlertEvent, ViolationAlertEvent
 
 _SEVERITY_EMOJI = {"low": "🔵", "medium": "🟡", "high": "🟠", "critical": "🔴"}
 
@@ -15,6 +15,15 @@ def _build_blocks(event: AlertEvent, rule_name: str) -> list:
             f"*Rule:* `{v.rule_id}`\n"
             f"*Trace:* `{v.trace_id}`\n"
             f"{v.description}"
+        )
+    elif isinstance(event, MonitoringAlertEvent):
+        emoji = _SEVERITY_EMOJI.get(event.severity, "⚪")
+        text = (
+            f"{emoji} *{rule_name}*\n"
+            f"*Event:* {event.event_type}  |  *Category:* `{event.category}`\n"
+            f"*Severity:* {event.severity}\n"
+            f"*Trace:* `{event.trace_id}`\n"
+            f"{event.reason}"
         )
     else:
         text = (
