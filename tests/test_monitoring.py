@@ -47,7 +47,6 @@ def test_production_defaults_disable_raw_content():
     config = Settings(environment="production")
     assert not config.raw_prompt_logging_enabled
     assert not config.raw_output_logging_enabled
-    assert config.trace_sampling_rate == 1.0
 
 
 def test_cost_estimation_supports_known_and_unknown_models():

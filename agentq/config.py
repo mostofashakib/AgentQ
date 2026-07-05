@@ -4,8 +4,6 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     environment: Literal["local", "staging", "production"] = "local"
-    tracing_enabled: bool = True
-    trace_sampling_rate: float = 1.0
     raw_prompt_logging_enabled: bool = False
     raw_output_logging_enabled: bool = False
     structured_logging_enabled: bool = True

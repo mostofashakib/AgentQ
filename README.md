@@ -302,8 +302,6 @@ To debug a failed run, open its trace in the dashboard or call `GET /api/monitor
 ```env
 DATABASE_URL=sqlite+aiosqlite:///./agentq.db
 ENVIRONMENT=local
-TRACING_ENABLED=true
-TRACE_SAMPLING_RATE=1.0
 RAW_PROMPT_LOGGING_ENABLED=false
 RAW_OUTPUT_LOGGING_ENABLED=false
 STRUCTURED_LOGGING_ENABLED=true
