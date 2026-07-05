@@ -5,7 +5,7 @@ from agentq.db.engine import get_session
 from agentq.ingest.simple_report import build_span_record_from_report
 from agentq.ingest.writer import write_spans
 from agentq.api.security import require_ingest
-from agentq.agents import authorize_agent
+from agentq.agents import authorize_agent, record_verified_telemetry
 
 router = APIRouter(prefix="/api")
 
@@ -35,5 +35,6 @@ async def report_action(
     agent = await authorize_agent(session, {body.agent_name}, agent_token)
     if agent is None:
         raise HTTPException(status_code=403, detail="Agent is not connected or its token is invalid")
+    record_verified_telemetry(agent)
     await write_spans(session, [record], analyze_behavior=True)
     return {"accepted": True, "trace_id": record.trace_id, "span_id": record.span_id}

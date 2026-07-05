@@ -70,10 +70,13 @@ class ConnectedAgent(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     service_name: Mapped[str] = mapped_column(String, unique=True, index=True)
+    integration_type: Mapped[str] = mapped_column(String, default="otel")
     token_hash: Mapped[str] = mapped_column(String)
     capture_traces: Mapped[bool] = mapped_column(Boolean, default=True)
     analyze_behavior: Mapped[bool] = mapped_column(Boolean, default=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    verified_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    last_seen_at: Mapped[Optional[datetime]] = mapped_column(nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(default=utc_now)
 
 

@@ -131,7 +131,7 @@ export default function ConnectPage() {
     setConnectionError('')
     try {
       const connection = await api.agents.connect({
-        service_name: serviceName, capture_traces: true,
+        service_name: serviceName, capture_traces: true, integration_type: frameworkId,
       })
       setConnectionToken(connection.connection_token)
       setAgents(await api.agents.list())
@@ -183,9 +183,9 @@ export default function ConnectPage() {
         <button type="button" onClick={connectAgent}
           disabled={!agentName.trim()}
           className="mt-3 text-xs font-mono px-3 py-1.5 rounded border border-cyan/40 text-cyan hover:bg-cyan/10 disabled:opacity-40">
-          Connect agent
+          Authorize agent
         </button>
-        <p className="text-xs text-muted mt-2">Behavior analysis and trace monitoring start automatically.</p>
+        <p className="text-xs text-muted mt-2">Authorization is pending until AgentQ verifies authenticated telemetry from this service.</p>
         {connectionError && <p role="alert" className="text-xs text-red mt-2">{connectionError}</p>}
       </div>
 
@@ -204,7 +204,7 @@ export default function ConnectPage() {
       </div>}
 
       {connectionToken && <div className="rounded border border-border p-4">
-        {connected ? (
+        {connected?.connection_status === 'connected' ? (
           <div className="flex items-center gap-3">
             <span className="w-2 h-2 rounded-full bg-green" />
             <div>
@@ -214,22 +214,31 @@ export default function ConnectPage() {
               </Link>
             </div>
           </div>
+        ) : connected?.connection_status === 'stale' ? (
+          <div className="flex items-center gap-3">
+            <span className="w-2 h-2 rounded-full bg-amber" />
+            <p className="text-sm text-amber font-mono">Stale — no telemetry received in the last 15 minutes</p>
+          </div>
         ) : (
           <div className="flex items-center gap-3">
             <span className="w-2 h-2 rounded-full bg-muted animate-pulse" />
-            <p className="text-sm text-muted font-mono">Waiting for spans from &ldquo;{agentName.trim() || 'my-agent'}&rdquo;…</p>
+            <p className="text-sm text-muted font-mono">Pending verification — waiting for authenticated telemetry from &ldquo;{agentName.trim() || 'my-agent'}&rdquo;…</p>
           </div>
         )}
       </div>}
 
       <div className="mt-6">
-        <p className="text-xs text-muted font-mono mb-2">CONNECTED AGENTS</p>
+        <p className="text-xs text-muted font-mono mb-2">AUTHORIZED AGENTS</p>
         <div className="space-y-2">
           {agents.map(agent => (
             <div key={agent.service_name} className="rounded border border-border px-4 py-3 flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-sm text-cyan font-mono truncate">{agent.service_name}</p>
-                <p className="text-xs text-muted">{agent.span_count} spans · {agent.violation_count} violations · behavior active</p>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${agent.connection_status === 'connected' ? 'bg-green' : agent.connection_status === 'stale' ? 'bg-amber' : 'bg-muted animate-pulse'}`} />
+                  <p className="text-sm text-cyan font-mono truncate">{agent.service_name}</p>
+                  <span className="text-[10px] uppercase font-mono text-muted">{agent.connection_status}</span>
+                </div>
+                <p className="text-xs text-muted">{agent.integration_type} · {agent.span_count} spans · {agent.violation_count} violations · behavior active</p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 <Link href={`/traces?service=${encodeURIComponent(agent.service_name)}`} className="text-xs text-cyan hover:underline">View traces</Link>
@@ -238,7 +247,7 @@ export default function ConnectPage() {
               </div>
             </div>
           ))}
-          {agents.length === 0 && <p className="text-sm text-muted">No agents connected.</p>}
+          {agents.length === 0 && <p className="text-sm text-muted">No agents authorized.</p>}
         </div>
       </div>
     </div>

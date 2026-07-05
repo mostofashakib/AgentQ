@@ -4,7 +4,7 @@ from agentq.db.engine import get_session
 from agentq.ingest.parser import parse_otlp_json, parse_otlp_protobuf
 from agentq.ingest.writer import write_spans
 from agentq.api.security import require_ingest
-from agentq.agents import authorize_agent
+from agentq.agents import authorize_agent, record_verified_telemetry
 
 router = APIRouter()
 
@@ -34,5 +34,6 @@ async def receive_traces(
     agent = await authorize_agent(session, {record.service_name for record in records}, agent_token)
     if agent is None:
         raise HTTPException(status_code=403, detail="Agent is not connected or its token is invalid")
+    record_verified_telemetry(agent)
     spans = await write_spans(session, records, analyze_behavior=True)
     return {"accepted": len(spans)}

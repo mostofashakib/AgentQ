@@ -123,6 +123,9 @@ export interface AlertHistory {
 
 export interface Agent {
   service_name: string
+  integration_type: 'openclaw' | 'otel' | 'mcp' | 'curl'
+  connection_status: 'pending' | 'connected' | 'stale'
+  verified_at: string | null
   span_count: number
   first_seen: string | null
   last_seen: string | null
@@ -133,6 +136,9 @@ export interface Agent {
 
 export interface AgentConnection {
   service_name: string
+  integration_type: Agent['integration_type']
+  connection_status: 'pending'
+  verified_at: null
   capture_traces: boolean
   analyze_behavior: boolean
   connection_token: string
@@ -309,10 +315,13 @@ export const api = {
   agents: {
     list: (): Promise<Agent[]> =>
       apiFetch(`/api/agents`).then(r => r.json()),
-    connect: (body: { service_name: string; capture_traces: boolean }): Promise<AgentConnection> =>
+    connect: (body: { service_name: string; capture_traces: boolean; integration_type: Agent['integration_type'] }): Promise<AgentConnection> =>
       apiFetch(`/api/agents`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      }).then(r => r.json()),
+      }).then(async r => {
+        if (!r.ok) throw new Error(`Agent authorization failed: ${r.status}`)
+        return r.json()
+      }),
     disconnect: (serviceName: string) =>
       apiFetch(`/api/agents/${encodeURIComponent(serviceName)}`, { method: 'DELETE' }).then(r => r.json()),
   },

@@ -1,3 +1,6 @@
+from datetime import timedelta
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
@@ -6,8 +9,18 @@ from agentq.db.engine import get_session
 from agentq.db.models import ConnectedAgent, Span, Violation
 from agentq.api.security import require_admin, require_viewer
 from agentq.agents import create_connection
+from agentq.utils.time import ensure_utc, utc_now
 
 router = APIRouter(prefix="/api/agents", tags=["agents"], dependencies=[Depends(require_viewer)])
+STALE_AFTER = timedelta(minutes=15)
+
+
+def _connection_status(connection: ConnectedAgent) -> str:
+    if connection.verified_at is None or connection.last_seen_at is None:
+        return "pending"
+    if utc_now() - ensure_utc(connection.last_seen_at) > STALE_AFTER:
+        return "stale"
+    return "connected"
 
 
 @router.get("")
@@ -20,18 +33,22 @@ async def list_agents(session: AsyncSession = Depends(get_session)):
     stats = {item["service_name"]: item for item in _build_agents(spans, violations)}
     return [{
         "service_name": connection.service_name,
+        "integration_type": connection.integration_type,
+        "connection_status": _connection_status(connection),
+        "verified_at": connection.verified_at.isoformat() if connection.verified_at else None,
         "capture_traces": connection.capture_traces,
         "analyze_behavior": connection.analyze_behavior,
         "span_count": stats.get(connection.service_name, {}).get("span_count", 0),
         "violation_count": stats.get(connection.service_name, {}).get("violation_count", 0),
         "first_seen": stats.get(connection.service_name, {}).get("first_seen"),
-        "last_seen": stats.get(connection.service_name, {}).get("last_seen"),
+        "last_seen": connection.last_seen_at.isoformat() if connection.last_seen_at else None,
     } for connection in connections]
 
 
 class AgentConnectionRequest(BaseModel):
     service_name: str = Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._-]*$")
     capture_traces: bool = True
+    integration_type: Literal["openclaw", "otel", "mcp", "curl"] = "otel"
 
     model_config = {"extra": "forbid"}
 
@@ -46,9 +63,13 @@ async def connect_agent(
         session,
         service_name=body.service_name,
         capture_traces=body.capture_traces,
+        integration_type=body.integration_type,
     )
     return {
         "service_name": agent.service_name,
+        "integration_type": agent.integration_type,
+        "connection_status": "pending",
+        "verified_at": None,
         "capture_traces": agent.capture_traces,
         "analyze_behavior": agent.analyze_behavior,
         "connection_token": token,

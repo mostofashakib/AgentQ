@@ -100,10 +100,10 @@ AgentQ ships 21 rules across 5 threat classes, evaluated on every ingested span 
 git clone <repo-url> agentq
 cd agentq
 cp .env.example .env          # set ANTHROPIC_API_KEY for LLM rubric generation
-./run.sh                      # starts backend :8000 + dashboard :3000
+./app.sh run                  # starts backend :8000 + dashboard :3000
 ```
 
-To stop: `./kill.sh`
+To stop: `./app.sh kill`
 
 ---
 
@@ -112,8 +112,8 @@ To stop: `./kill.sh`
 Start with a fully seeded dataset — 6 agent traces, 10 guardrail violations across all threat classes, 3 behavior clusters with rubrics, and 2 alert rules. No real agent required.
 
 ```bash
-./demo.sh           # start with demo data pre-loaded
-./demo.sh --reset   # wipe demo data and re-seed
+./app.sh demo           # start with demo data pre-loaded
+./app.sh demo --reset   # wipe demo data and re-seed
 ```
 
 **Demo dataset:**
@@ -156,7 +156,43 @@ To run without auth (e.g. testing on a private LAN only), override `ENVIRONMENT:
 
 ## Connecting an Agent
 
-AgentQ speaks **AOP/1** — the AgentQ Observability Protocol: OTLP/HTTP spans (JSON or protobuf), `service.name` as agent identity, OTel GenAI semantic conventions as the action schema, automatic MCP normalization, and a pre-execution intercept hook. First authorize each service on **Connect Agent**. Behavior analysis is always enabled; trace visibility can be selected separately. Multiple connected agents can be observed together. AgentQ shows each generated connection token once and rejects telemetry whose service name and token do not match.
+AgentQ speaks **AOP/1**, the AgentQ Observability Protocol. AOP/1 is an agent-to-AgentQ protocol built on OTLP/HTTP. It uses `service.name` as the agent identity, OpenTelemetry GenAI attributes as the action schema, an agent-scoped bearer token, optional MCP normalization, and a pre-execution policy hook.
+
+Creating a registration does **not** mean the agent is connected. The connection lifecycle is:
+
+| State | Meaning |
+|---|---|
+| `pending` | AgentQ issued a one-time token but has not received matching telemetry |
+| `connected` | AgentQ accepted telemetry whose token and `service.name` match the registration |
+| `stale` | The agent was verified but has sent no telemetry for 15 minutes |
+
+To connect an agent:
+
+1. Open **Agents**, select the integration, enter the exact `service.name`, and click **Authorize agent**.
+2. Copy the generated token and configuration. The token is shown once and stored only as a hash.
+3. Start the agent. AgentQ changes it from `pending` to `connected` only after verified telemetry arrives.
+
+### AOP/1 requirements
+
+- Send OTLP/HTTP to `POST /v1/traces` using JSON or protobuf.
+- Include `X-AgentQ-Agent-Token: <connection-token>` on every request.
+- Set the OTLP resource attribute `service.name` to the authorized agent name.
+- Use valid trace and span IDs and OpenTelemetry GenAI semantic attributes.
+- Send MCP instrumentation as `mcp.*` attributes; AgentQ normalizes them before analysis.
+- Call `POST /api/intercept` before side effects when pre-execution enforcement is required.
+
+Requests containing multiple service names, an unknown service, or a mismatched token are rejected before storage.
+
+### Supported integrations
+
+| Integration | Transport | AgentQ behavior |
+|---|---|---|
+| OpenClaw | OTLP/HTTP protobuf via `diagnostics-otel` | Verifies the token and service name; ingests captured model and tool spans |
+| Generic OpenTelemetry | OTLP/HTTP JSON or protobuf | Accepts standard OTel SDK/exporter traffic |
+| MCP agents | OTLP with `mcp.*`, or AgentQ's `/mcp` tools | Normalizes MCP attributes into GenAI attributes |
+| cURL / custom agents | Raw OTLP JSON or `/api/report` | Supports dependency-light and manual integrations |
+
+### Generic OpenTelemetry
 
 Set two env vars before running your agent:
 
@@ -166,14 +202,7 @@ export OTEL_EXPORTER_OTLP_PROTOCOL=http/json   # or http/protobuf — both accep
 export OTEL_EXPORTER_OTLP_HEADERS="X-AgentQ-Agent-Token=<connection-token>"
 ```
 
-Or use [openlit](https://github.com/openlit/openlit) (recommended):
-
-```python
-import openlit
-openlit.init(otlp_endpoint="http://localhost:8000/v1/traces")
-```
-
-**OpenClaw:**
+### OpenClaw
 
 ```bash
 openclaw plugins install clawhub:@openclaw/diagnostics-otel
@@ -189,6 +218,7 @@ openclaw plugins enable diagnostics-otel
       tracesEndpoint: "http://localhost:8000/v1/traces",
       protocol: "http/protobuf",
       serviceName: "openclaw-prod",
+      headers: { "X-AgentQ-Agent-Token": "<connection-token>" },
       traces: true,
       metrics: false,
       logs: false,
@@ -206,7 +236,9 @@ openclaw plugins enable diagnostics-otel
 
 > `captureContent` defaults to all-`false` in OpenClaw for privacy — spans carry no prompt/response/tool text unless you opt in above. Without it, AgentQ's content-scanning guardrails (injection, PII, exfiltration) receive spans but find nothing to scan.
 
-MCP agents — spans with any `mcp.*` attribute are automatically normalized to GenAI conventions.
+### MCP agents
+
+Spans with any `mcp.*` attribute are automatically normalized to GenAI conventions. For agents that use MCP directly, AgentQ is available at `http://localhost:8000/mcp` and exposes these tools:
 
 **Pre-execution intercept:**
 
@@ -223,15 +255,15 @@ resp = httpx.post("http://localhost:8000/api/intercept", json={
 decision = resp.json()
 ```
 
-**MCP server:** AgentQ is itself reachable as an MCP server at `http://localhost:8000/mcp`, exposing 3 tools for any MCP client (Claude Desktop, a custom agent, etc.):
-
 | Tool | What it does |
 |---|---|
 | `report_action(agent_name, tool_name, connection_token, input, output)` | Logs an authorized completed action through the same monitoring pipeline as OTLP |
 | `check_action(agent_name, tool_name, attributes)` | Advisory guardrail check that returns detected violations; use `POST /api/intercept` when enforcement is required |
 | `get_violations(agent_name, connection_token, limit)` | Recent violations for an authorized agent |
 
-**Simple report API:** for agents that don't want to touch OTel at all:
+### cURL and custom agents
+
+For agents that do not use OTel, the simple report API sends a completed action through the same authorization and monitoring pipeline:
 
 ```bash
 curl -X POST http://localhost:8000/api/report \
@@ -239,6 +271,22 @@ curl -X POST http://localhost:8000/api/report \
   -H "X-AgentQ-Agent-Token: <connection-token>" \
   -d '{"agent_name": "my-agent", "tool_name": "send_email", "input": "to: a@b.com", "output": "sent"}'
 ```
+
+### Local Gemma end-to-end test agents
+
+The conformance agent in `examples/test_agents` uses a local Gemma model through Ollama. It has web search, safe arithmetic, and current-time tools. Each tool and model action emits AOP/1 telemetry. No model or Python dependency is downloaded by the runner.
+
+Start AgentQ, run `ollama serve`, pull your preferred Gemma model separately, then authorize one service per integration in the dashboard. Run each profile with its generated token:
+
+```bash
+./app.sh agent otel gemma-otel <token> "Search the web for AgentQ and summarize it"
+./app.sh agent otel-protobuf gemma-protobuf <token> "Calculate 17 * 23"
+./app.sh agent openclaw gemma-openclaw <token> "What time is it?"
+./app.sh agent mcp gemma-mcp <token> "Search for current OpenTelemetry news"
+./app.sh agent curl gemma-curl <token> "Calculate 144 / 12"
+```
+
+`openclaw` is a wire-format conformance profile that reproduces the OTLP protobuf emitted by `diagnostics-otel`; the actual OpenClaw configuration above remains the production integration. Run `./app.sh e2e [integration] [model]` to automate registration, a real Gemma invocation, telemetry verification, and cleanup.
 
 ---
 

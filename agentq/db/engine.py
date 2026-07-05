@@ -22,9 +22,18 @@ async def create_tables() -> None:
     from agentq.db.models import Base
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        columns = await conn.run_sync(
+        settings_columns = await conn.run_sync(
             lambda sync_conn: {column["name"] for column in inspect(sync_conn).get_columns("app_settings")}
         )
-        if "llm_base_url" not in columns:
+        if "llm_base_url" not in settings_columns:
             await conn.execute(text("ALTER TABLE app_settings ADD COLUMN llm_base_url VARCHAR"))
+        agent_columns = await conn.run_sync(
+            lambda sync_conn: {column["name"] for column in inspect(sync_conn).get_columns("connected_agents")}
+        )
+        if "integration_type" not in agent_columns:
+            await conn.execute(text("ALTER TABLE connected_agents ADD COLUMN integration_type VARCHAR DEFAULT 'otel' NOT NULL"))
+        if "verified_at" not in agent_columns:
+            await conn.execute(text("ALTER TABLE connected_agents ADD COLUMN verified_at DATETIME"))
+        if "last_seen_at" not in agent_columns:
+            await conn.execute(text("ALTER TABLE connected_agents ADD COLUMN last_seen_at DATETIME"))
         await conn.execute(text("UPDATE connected_agents SET analyze_behavior = true"))

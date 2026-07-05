@@ -385,7 +385,7 @@ cp .env.example .env
 # Set ANTHROPIC_API_KEY (or another judge provider) in .env`}</CodeBlock>
             </Step>
             <Step n={2} title="Start AgentQ">
-              <CodeBlock lang="shell">{`./run.sh`}</CodeBlock>
+              <CodeBlock lang="shell">{`./app.sh run`}</CodeBlock>
               <p style={{ marginTop: 8 }}>This starts the FastAPI backend on port <InlineCode>8000</InlineCode> and the Next.js dashboard on port <InlineCode>3000</InlineCode>.</p>
             </Step>
             <Step n={3} title="Connect your agent">
@@ -397,7 +397,7 @@ cp .env.example .env
           </Steps>
 
           <Callout kind="tip" title="Stopping the servers">
-            Run <InlineCode>./kill.sh</InlineCode> to terminate both the backend and frontend processes.
+            Run <InlineCode>./app.sh kill</InlineCode> to terminate both the backend and frontend processes.
           </Callout>
 
           {/* ── Connecting ───────────────────────────────────────────── */}
